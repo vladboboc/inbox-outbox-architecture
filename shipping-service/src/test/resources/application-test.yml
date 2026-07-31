@@ -1,0 +1,24 @@
+# Datasource is supplied by @ServiceConnection from the Postgres container.
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  kafka:
+    bootstrap-servers: localhost:1
+    listener:
+      # These tests exercise the claim-plus-write transaction directly. Starting the listener
+      # containers would only add a broker dependency and startup latency without testing more.
+      auto-startup: false
+
+demo:
+  inbox:
+    cleanup:
+      # No scheduler noise during tests.
+      enabled: false
+
+logging:
+  level:
+    com.demo: DEBUG
+    org.testcontainers: WARN

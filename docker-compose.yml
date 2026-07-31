@@ -1,0 +1,324 @@
+# Inbox/Outbox POC — full local stack.
+#
+#   docker compose up -d                              apps + 3-broker Kafka cluster (~8 containers)
+#   docker compose --profile ui --profile metrics up -d   ...plus Conduktor, Prometheus, Grafana (~14)
+#
+# Profiles: ui (Conduktor Console + Cortex) | metrics (Prometheus, Grafana, kafka-exporter).
+# Everything else always starts.
+#
+# All three brokers are always-on by design: the KRaft controller quorum has 3 voters, so it
+# needs 2 of 3 to elect a leader — a single broker would never form a quorum. RF=3 topics and
+# min.insync.replicas=2 also depend on all three being present.
+#
+# Confluent Platform 8.x is KRaft-only — ZooKeeper was removed in CP 8.0.
+
+name: inbox-outbox
+
+x-kafka-common: &kafka-common
+  image: confluentinc/cp-kafka:8.2.2
+  environment: &kafka-env
+    # Same CLUSTER_ID on every node; this is a valid base64-encoded UUID.
+    CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    KAFKA_PROCESS_ROLES: broker,controller
+    KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+    KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+    KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+    KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+    # acks=all on the producer only means "durably replicated" if the ISR floor is > 1.
+    KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+    KAFKA_MIN_INSYNC_REPLICAS: 2
+    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+    KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+    KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+    KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    KAFKA_JMX_PORT: 9101
+    # Confluent images default to a 1 GB heap. Three brokers at that size is 3 GB before anything
+    # else starts, which is enough to destabilise the whole stack on a normal laptop.
+    KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+  healthcheck:
+    test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+    interval: 10s
+    timeout: 10s
+    retries: 20
+    start_period: 30s
+  deploy:
+    resources:
+      limits:
+        memory: 1g
+
+services:
+  # ───────────────────────────── Kafka (KRaft, combined mode) ─────────────────────────────
+  kafka-1:
+    <<: *kafka-common
+    hostname: kafka-1
+    container_name: kafka-1
+    ports: ["19092:19092", "9101:9101"]
+    environment:
+      <<: *kafka-env
+      KAFKA_NODE_ID: 1
+      # Bind on 0.0.0.0, advertise the routable name. Binding to "kafka-1:9092" would attach only to
+      # the container IP, so the healthcheck's localhost:9092 connection would be refused.
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:19092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-1:9092,EXTERNAL://localhost:19092
+    volumes: ["kafka1-data:/var/lib/kafka/data"]
+
+  kafka-2:
+    <<: *kafka-common
+    hostname: kafka-2
+    container_name: kafka-2
+    ports: ["29092:29092"]
+    environment:
+      <<: *kafka-env
+      KAFKA_NODE_ID: 2
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-2:9092,EXTERNAL://localhost:29092
+    volumes: ["kafka2-data:/var/lib/kafka/data"]
+
+  kafka-3:
+    <<: *kafka-common
+    hostname: kafka-3
+    container_name: kafka-3
+    ports: ["39092:39092"]
+    environment:
+      <<: *kafka-env
+      KAFKA_NODE_ID: 3
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:39092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-3:9092,EXTERNAL://localhost:39092
+    volumes: ["kafka3-data:/var/lib/kafka/data"]
+
+  # Creates the demo topics, then exits. Everything else waits on it.
+  topic-init:
+    image: confluentinc/cp-kafka:8.2.2
+    container_name: topic-init
+    depends_on:
+      kafka-1: {condition: service_healthy}
+      kafka-2: {condition: service_healthy}
+      kafka-3: {condition: service_healthy}
+    entrypoint: ["/bin/bash", "/scripts/create-topics.sh"]
+    volumes: ["./docker/kafka/create-topics.sh:/scripts/create-topics.sh:ro"]
+    restart: on-failure
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:8.2.2
+    hostname: schema-registry
+    container_name: schema-registry
+    depends_on:
+      kafka-1: {condition: service_healthy}
+    ports: ["8081:8081"]
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka-1:9092,PLAINTEXT://kafka-2:9092,PLAINTEXT://kafka-3:9092
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR: 3
+      SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL: backward
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/subjects"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+  # ───────────────────────────── Application databases ─────────────────────────────
+  # One instance, two databases: each service owns its own schema, as it would in production.
+  app-postgres:
+    image: postgres:17.10
+    hostname: app-postgres
+    container_name: app-postgres
+    ports: ["5432:5432"]
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+      POSTGRES_DB: postgres
+    volumes:
+      - app-pg-data:/var/lib/postgresql/data
+      - ./docker/postgres/init-app-db.sh:/docker-entrypoint-initdb.d/10-init-app-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ───────────────────────────── Application services ─────────────────────────────
+  order-service:
+    build:
+      context: .
+      dockerfile: order-service/Dockerfile
+    image: inbox-outbox/order-service:1.0.0-SNAPSHOT
+    container_name: order-service
+    ports: ["8090:8090"]
+    depends_on:
+      app-postgres: {condition: service_healthy}
+      kafka-1: {condition: service_healthy}
+      topic-init: {condition: service_completed_successfully}
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://app-postgres:5432/orderdb
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      # 60% of a 1 GB limit leaves room for metaspace, thread stacks and direct buffers. At the
+      # image default of 70% the container sat at ~97% of its limit, one traffic spike from an
+      # OOM kill.
+      JAVA_OPTS: "-XX:MaxRAMPercentage=60 -XX:+UseZGC"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8090/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+    # Required, not merely tidy. The image sets -XX:MaxRAMPercentage=70, which without a limit is
+    # 70% of the whole Docker VM -- this service was observed holding 2.4 GB. The limit is what
+    # gives MaxRAMPercentage a sane basis to compute against.
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  shipping-service:
+    build:
+      context: .
+      dockerfile: shipping-service/Dockerfile
+    image: inbox-outbox/shipping-service:1.0.0-SNAPSHOT
+    container_name: shipping-service
+    ports: ["8091:8091"]
+    depends_on:
+      app-postgres: {condition: service_healthy}
+      kafka-1: {condition: service_healthy}
+      topic-init: {condition: service_completed_successfully}
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://app-postgres:5432/shippingdb
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      # See order-service: 60% of the limit, not the image default of 70%.
+      JAVA_OPTS: "-XX:MaxRAMPercentage=60 -XX:+UseZGC"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8091/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+    # See the note on order-service: the limit is what bounds -XX:MaxRAMPercentage.
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  # ───────────────────────────── Conduktor Console ─────────────────────────────
+  # Console 1.46.x needs two databases: one for its own state, one for the SQL feature.
+  conduktor-postgres:
+    image: postgres:17.10
+    hostname: conduktor-postgres
+    container_name: conduktor-postgres
+    profiles: ["ui"]
+    ports: ["5433:5432"]
+    environment:
+      POSTGRES_USER: conduktor
+      POSTGRES_PASSWORD: change_me
+      POSTGRES_DB: conduktor-console
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    volumes:
+      - conduktor-pg-data:/var/lib/postgresql/data
+      - ./docker/postgres/init-conduktor-db.sh:/docker-entrypoint-initdb.d/10-init-conduktor-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U conduktor -d conduktor-console"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  conduktor-console:
+    image: conduktor/conduktor-console:1.46.2
+    hostname: conduktor-console
+    container_name: conduktor-console
+    profiles: ["ui"]
+    depends_on:
+      conduktor-postgres: {condition: service_healthy}
+      kafka-1: {condition: service_healthy}
+    ports: ["8080:8080"]
+    volumes: ["conduktor-data:/var/conduktor"]
+    environment:
+      CDK_DATABASE_URL: "postgresql://conduktor:change_me@conduktor-postgres:5432/conduktor-console"
+      CDK_KAFKASQL_DATABASE_URL: "postgresql://conduktor:change_me@conduktor-postgres:5432/conduktor-sql"
+      CDK_ORGANIZATION_NAME: "inbox-outbox-demo"
+      CDK_ADMIN_EMAIL: "admin@demo.io"
+      # Console 1.46 enforces a password policy: >=8 chars with upper, lower, digit and symbol.
+      # A weaker value fails config validation at startup and the container exits.
+      CDK_ADMIN_PASSWORD: "Admin123!"
+      CDK_CLUSTERS_0_ID: "local-kafka"
+      CDK_CLUSTERS_0_NAME: "local-kafka"
+      CDK_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka-1:9092"
+      CDK_CLUSTERS_0_SCHEMAREGISTRY_URL: "http://schema-registry:8081"
+      CDK_CLUSTERS_0_COLOR: "#6A57C8"
+      CDK_CLUSTERS_0_ICON: "kafka"
+      # Hyphenated suffixes are correct here — this is Conduktor's own spelling.
+      CDK_MONITORING_CORTEX-URL: "http://conduktor-monitoring:9009/"
+      CDK_MONITORING_ALERT-MANAGER-URL: "http://conduktor-monitoring:9010/"
+      CDK_MONITORING_CALLBACK-URL: "http://conduktor-console:8080/monitoring/api/"
+      CDK_MONITORING_NOTIFICATIONS-CALLBACK-URL: "http://localhost:8080"
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+
+  conduktor-monitoring:
+    image: conduktor/conduktor-console-cortex:1.46.2
+    hostname: conduktor-monitoring
+    container_name: conduktor-monitoring
+    profiles: ["ui"]
+    environment:
+      CDK_CONSOLE-URL: "http://conduktor-console:8080"
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  # ───────────────────────────── Prometheus / Grafana ─────────────────────────────
+  # kafka-exporter speaks the Kafka protocol rather than JMX: no javaagent jar to mount
+  # into the broker images, and it yields the metric that matters most here (consumer lag).
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.9.0
+    hostname: kafka-exporter
+    container_name: kafka-exporter
+    profiles: ["metrics"]
+    depends_on:
+      kafka-1: {condition: service_healthy}
+    ports: ["9308:9308"]
+    command: ["--kafka.server=kafka-1:9092"]
+    restart: on-failure
+
+  prometheus:
+    image: prom/prometheus:v3.13.1
+    hostname: prometheus
+    container_name: prometheus
+    profiles: ["metrics"]
+    ports: ["9090:9090"]
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=6h
+
+  grafana:
+    image: grafana/grafana:13.1.1
+    hostname: grafana
+    container_name: grafana
+    profiles: ["metrics"]
+    depends_on: [prometheus]
+    ports: ["3000:3000"]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_DEFAULT_THEME: dark
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+
+volumes:
+  kafka1-data: {}
+  kafka2-data: {}
+  kafka3-data: {}
+  app-pg-data: {}
+  conduktor-pg-data: {}
+  conduktor-data: {}
+  prometheus-data: {}
+  grafana-data: {}

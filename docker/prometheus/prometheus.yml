@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Spring Boot apps: namastack outbox gauges/timers + inbox counters + JVM + Kafka client metrics.
+  - job_name: order-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['order-service:8090']
+        labels: {service: order-service}
+
+  - job_name: shipping-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['shipping-service:8091']
+        labels: {service: shipping-service}
+
+  # Cluster-level view: topic offsets and, crucially, kafka_consumergroup_lag.
+  - job_name: kafka-exporter
+    static_configs:
+      - targets: ['kafka-exporter:9308']
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

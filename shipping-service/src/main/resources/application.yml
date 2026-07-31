@@ -1,0 +1,98 @@
+spring:
+  application:
+    name: shipping-service
+
+  threads:
+    virtual:
+      enabled: true
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/shippingdb
+    username: demo
+    password: demo
+    hikari:
+      maximum-pool-size: 16
+      pool-name: shipping-pool
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  kafka:
+    bootstrap-servers: localhost:19092,localhost:29092,localhost:39092
+    consumer:
+      group-id: shipping-service
+      auto-offset-reset: earliest
+      # Offsets are committed by the container after the listener returns, never by the client on a
+      # timer. Auto-commit would acknowledge events before they were processed, which would lose
+      # them on a crash -- the inbox cannot recover an event it never saw.
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # Must be set explicitly. namastack.outbox.kafka.enable-json configures the deserializer only
+      # in the application that has the namastack Kafka module -- this service does not, so without
+      # this the value deserializer stays at Boot's StringDeserializer default and every listener
+      # fails with "Listener method could not be invoked with the incoming message".
+      #
+      # ErrorHandlingDeserializer delegates to Jackson and converts a deserialization failure into a
+      # record the error handler can route to the DLT. Without it, an unparseable payload throws
+      # inside poll() and blocks the partition forever -- no retry policy can help, because the
+      # record is never handed to the listener at all.
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+        spring.json.trusted.packages: com.demo.events
+        # Mirror of the producer's aliases, so neither side depends on the other's class names.
+        spring.json.type.mapping: >-
+          orderCreated:com.demo.events.OrderCreated,orderCancelled:com.demo.events.OrderCancelled
+    listener:
+      ack-mode: record
+      concurrency: 3
+      # Surfaces the topic/partition/offset headers the inbox records for diagnostics.
+      observation-enabled: true
+    producer:
+      # Used only by the dead-letter publisher.
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # The recoverer publishes two shapes: the deserialized event when the listener threw, and the
+      # original byte[] when deserialization itself failed. Jackson handles both (byte[] becomes a
+      # base64 string). A DelegatingByTypeSerializer routing byte[] to ByteArraySerializer would
+      # keep failed payloads byte-exact for inspection -- worth it in production, unnecessary here.
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+
+demo:
+  inbox:
+    enabled: true
+    cleanup:
+      enabled: true
+      # Retention IS the deduplication window: anything redelivered after this is processed again.
+      # It must stay comfortably above the topic's own retention.
+      retention: 7d
+      interval: 1h
+
+server:
+  port: 8091
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: shipping-service
+
+logging:
+  level:
+    com.demo: DEBUG
+    org.springframework.kafka: INFO

@@ -1,0 +1,44 @@
+# Datasource and Kafka bootstrap are supplied by @ServiceConnection from the containers.
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  datasource:
+    hikari:
+      # The relay polls on its own scheduler, so it keeps asking for connections while the context
+      # is closing. With the 30s default this produced a wall of "connection is not available"
+      # warnings and made Surefire hard-kill the fork 30s after System.exit.
+      connection-timeout: 3000
+  kafka:
+    producer:
+      properties:
+        # Short timeouts: a test should fail quickly rather than hang on an unreachable broker.
+        max.block.ms: 5000
+        delivery.timeout.ms: 8000
+        request.timeout.ms: 4000
+
+# The outbox poller runs for real against the Kafka container, which is the point: the test asserts
+# a record reaches COMPLETED, and that status is only written after the broker acknowledges.
+namastack:
+  outbox:
+    polling:
+      trigger: fixed
+      fixed:
+        interval: 500ms
+    processing:
+      shutdown-timeout: 5s
+    instance:
+      graceful-shutdown-timeout: 0s
+    retry:
+      max-retries: 3
+      policy: fixed
+      fixed:
+        delay: 1s
+
+logging:
+  level:
+    com.demo: DEBUG
+    io.namastack.outbox: DEBUG
+    org.testcontainers: WARN
