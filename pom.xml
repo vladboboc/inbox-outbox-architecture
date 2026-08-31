@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.1.0</version>
+        <version>4.1.1</version>
         <relativePath/>
     </parent>
 
@@ -30,9 +30,9 @@
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <!-- namastack-outbox 1.8.0 builds against spring-boot-dependencies 4.1.0,
+        <!-- namastack-outbox 1.9.0 builds against spring-boot-dependencies 4.1.1,
              which is exactly the parent version above. Keep them in lockstep. -->
-        <namastack-outbox.version>1.8.0</namastack-outbox.version>
+        <namastack-outbox.version>1.9.0</namastack-outbox.version>
     </properties>
 
     <dependencyManagement>

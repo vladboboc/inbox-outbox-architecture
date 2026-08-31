@@ -1,6 +1,6 @@
 # Transactional Outbox + Idempotent Inbox
 
-A runnable POC on **Java 25 / Spring Boot 4.1.0 / Confluent Kafka 8.2.2 (KRaft)** that demonstrates
+A runnable POC on **Java 25 / Spring Boot 4.1.1 / Confluent Kafka 8.2.2 (KRaft)** that demonstrates
 reliable asynchronous messaging end to end:
 
 - **Outbox** — a business write and its event commit in one database transaction, then a background
@@ -108,11 +108,11 @@ answers which question.
 | Component | Version | Note |
 |---|---|---|
 | Java | 25 | Records, sealed interfaces, virtual threads |
-| Spring Boot | **4.1.0** | Matches namastack's own baseline exactly |
-| namastack-outbox | **1.8.0** | BOM + `starter-jpa`, `kafka`, `metrics`, `observability`, `actuator` |
-| kafka-clients / spring-kafka | 4.2.1 / 4.1.0 | Managed by Boot |
-| Jackson | 3.1.4 | Jackson **3** (`tools.jackson.*`) is the Boot 4 default |
-| Flyway / PostgreSQL JDBC | 12.4.0 / 42.7.11 | Managed by Boot |
+| Spring Boot | **4.1.1** | Matches namastack's own baseline exactly |
+| namastack-outbox | **1.9.0** | BOM + `starter-jpa`, `kafka`, `metrics`, `observability`, `actuator` |
+| kafka-clients / spring-kafka | 4.2.1 / 4.1.1 | Managed by Boot |
+| Jackson | 3.1.5 | Jackson **3** (`tools.jackson.*`) is the Boot 4 default |
+| Flyway / PostgreSQL JDBC | 12.4.0 / 42.7.13 | Managed by Boot |
 | Testcontainers | 2.0.5 | 2.x renamed every module with a `testcontainers-` prefix |
 | Confluent Platform | 8.2.2 | KRaft only — ZooKeeper removed in CP 8.0 |
 | Conduktor Console / Cortex | 1.46.2 | Free plan; needs two databases |

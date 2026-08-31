@@ -1,4 +1,4 @@
--- namastack-outbox 1.8.0 schema for PostgreSQL.
+-- namastack-outbox 1.9.0 schema for PostgreSQL.
 -- Copied verbatim from the library repo:
 --   namastack-outbox-jdbc/src/main/resources/schema/postgres/outbox-tables.sql
 -- The JPA module does NOT create its schema, so this migration is mandatory.
