@@ -95,6 +95,12 @@ public class OrderEventListener {
      * {@code kafka_dlt-*} headers the recoverer adds arrive as raw {@code byte[]} and are not
      * reliably converted for annotated parameters, which produced log lines reading
      * "topic=unknown ... null" — worse than useless on the one path where diagnostics matter most.
+     *
+     * <p>The header names are the {@code DLT_*} constants. {@code KafkaHeaders.ORIGINAL_TOPIC},
+     * {@code EXCEPTION_FQCN} and friends look right but belong to the retry-topic feature
+     * ({@code kafka_original-*}); {@code DeadLetterPublishingRecoverer} writes
+     * {@code kafka_dlt-original-*} and {@code kafka_dlt-exception-*}, and reading the wrong set
+     * silently yields "n/a" for every field.
      */
     @KafkaListener(
             id = "orders-dlt",
@@ -105,11 +111,11 @@ public class OrderEventListener {
         log.error(
                 "DLT: key={} originalTopic={} originalPartition={} originalOffset={} cause={}: {}",
                 record.key(),
-                header(record, KafkaHeaders.ORIGINAL_TOPIC),
-                header(record, KafkaHeaders.ORIGINAL_PARTITION),
-                header(record, KafkaHeaders.ORIGINAL_OFFSET),
-                header(record, KafkaHeaders.EXCEPTION_FQCN),
-                header(record, KafkaHeaders.EXCEPTION_MESSAGE));
+                header(record, KafkaHeaders.DLT_ORIGINAL_TOPIC),
+                header(record, KafkaHeaders.DLT_ORIGINAL_PARTITION),
+                header(record, KafkaHeaders.DLT_ORIGINAL_OFFSET),
+                header(record, KafkaHeaders.DLT_EXCEPTION_CAUSE_FQCN),
+                header(record, KafkaHeaders.DLT_EXCEPTION_MESSAGE));
     }
 
     private static String header(ConsumerRecord<?, ?> record, String name) {
