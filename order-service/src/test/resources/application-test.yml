@@ -12,6 +12,10 @@ spring:
       # warnings and made Surefire hard-kill the fork 30s after System.exit.
       connection-timeout: 3000
   kafka:
+    properties:
+      # Confluent's mock:// scheme backs the serializer with an in-JVM MockSchemaRegistryClient, so
+      # the Avro path runs for real against the Kafka container without a registry container.
+      schema.registry.url: mock://outbox-test
     producer:
       properties:
         # Short timeouts: a test should fail quickly rather than hang on an unreachable broker.

@@ -1,0 +1,30 @@
+{
+  "type": "record",
+  "name": "OrderCancelled",
+  "namespace": "com.demo.events.avro",
+  "doc": "Published on orders.v1.cancelled when an order is cancelled. Wire contract; the in-process form is com.demo.events.OrderCancelled.",
+  "fields": [
+    {
+      "name": "eventId",
+      "type": "string",
+      "doc": "Stable, globally unique id for this event. The consumer-side inbox idempotency key."
+    },
+    {
+      "name": "orderId",
+      "type": "string",
+      "doc": "Aggregate id. Also the Kafka record key."
+    },
+    {
+      "name": "reason",
+      "type": "string"
+    },
+    {
+      "name": "occurredAt",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "When the business fact occurred, not when it was published."
+    }
+  ]
+}

@@ -115,7 +115,9 @@ live-demo commands below.
 | Spring Boot | **4.1.1** | Matches namastack's own baseline exactly |
 | namastack-outbox | **1.9.0** | BOM + `starter-jpa`, `kafka`, `metrics`, `observability`, `actuator` |
 | kafka-clients / spring-kafka | 4.2.1 / 4.1.1 | Managed by Boot |
-| Jackson | 3.1.5 | Jackson **3** (`tools.jackson.*`) is the Boot 4 default |
+| Jackson | 3.1.5 | Jackson **3** (`tools.jackson.*`) is the Boot 4 default; used for REST and the outbox table, not for Kafka |
+| Confluent kafka-avro-serializer | 8.2.2 | Same line as the CP images; brings Jackson 2 along, which coexists with Jackson 3 |
+| Apache Avro | 1.12.2 | `avro-maven-plugin` generates `com.demo.events.avro.*` from `common-events/src/main/avro` |
 | Flyway / PostgreSQL JDBC | 12.4.0 / 42.7.13 | Managed by Boot |
 | Testcontainers | 2.0.5 | 2.x renamed every module with a `testcontainers-` prefix |
 | Confluent Platform | 8.2.2 | KRaft only — ZooKeeper removed in CP 8.0 |
@@ -269,26 +271,55 @@ curl -s -X POST "localhost:8090/orders/ORD-XXXXXXXX/cancel?reason=changed-mind"
 ./mvnw verify
 ```
 
+The wrapper still needs a JDK on the host. Without one, run Maven in a container and hand it the
+Docker socket so Testcontainers can start Postgres and Kafka (one module at a time keeps memory in
+check):
+
+```bash
+docker run --rm -v "$PWD":/work -w /work -v iox-m2:/root/.m2 -v /var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal maven:3.9-eclipse-temurin-25 mvn -B -pl shipping-service -am verify
+```
+
 ---
 
 ## Notes and trade-offs
 
 **Two harmless log lines you will see.** Conduktor's ACL indexer logs
 `SecurityDisabledException: No Authorizer is configured on the broker` every cycle — expected on a
-PLAINTEXT dev cluster with no authorizer, and unrelated to the demo. Its Schema Registry indexer also
-reports `0 schemas, 0 subjects`, which is correct for the serialization choice described next.
+PLAINTEXT dev cluster with no authorizer, and unrelated to the demo. The Kafka admin and consumer
+clients log `The configuration 'schema.registry.url' was supplied but isn't a known config` at
+startup: the URL is set once under `spring.kafka.properties` so it reaches every client, and the
+ones that do not need it say so.
 
-**Serialization.** `namastack.outbox.kafka.enable-json: true` contributes Spring Kafka's
-`JacksonJsonSerializer`/`JacksonJsonDeserializer` — that is **plain Jackson 3 JSON**, without
-Confluent's 5-byte magic + schema-id envelope. Conduktor renders the messages correctly but cannot
-associate a registry schema. Schema Registry runs in the stack and is wired into Conduktor so the
-upgrade path is short: swap the producer's `value-serializer` for Confluent's
-`KafkaJsonSchemaSerializer` (add the `packages.confluent.io` repository) with no change to outbox or
-inbox logic.
+**Serialization.** Full write-up in [docs/avro-schema-registry.md](docs/avro-schema-registry.md). In short, Kafka carries **Confluent Avro**: `io.confluent.kafka.serializers.KafkaAvroSerializer`
+on the producer, `KafkaAvroDeserializer` (behind `ErrorHandlingDeserializer`, `specific.avro.reader`)
+on the consumer, schemas in the Schema Registry at `:8081`. The contracts are the `.avsc` files in
+[`common-events/src/main/avro`](common-events/src/main/avro); `avro-maven-plugin` generates the
+`com.demo.events.avro.*` classes from them at build time. Subjects follow the topic-name strategy and
+are auto-registered on first use — `orders.v1-value` after the first order, `orders.v1.cancelled-value`
+after the first cancellation, `orders.v1.DLT-value` after the poison demo (the dead-letter producer
+re-publishes a failed event as Avro, and the original bytes untouched when deserialization itself
+failed). `curl -s localhost:8081/subjects` shows them; Conduktor shows the schema next to each topic.
+In production, register schemas from CI and set `auto.register.schemas=false`.
 
-**Class-name coupling.** `spring.json.type.mapping` maps logical aliases (`orderCreated`) to classes
-on each side, so the wire format carries no Java FQCNs and the services can evolve their internal
-package layout independently.
+**Avro's class allow-list.** Avro ≥ 1.12.1 refuses to load any class by name unless it is trusted,
+and `KafkaAvroDeserializer` with `specific.avro.reader` resolves the schema's full name to the
+generated class exactly that way — the symptom is `SecurityException: Forbidden
+com.demo.events.avro.OrderCreated! This class is not trusted…`. Both services register the generated
+classes at startup via [`AvroTrust`](common-events/src/main/java/com/demo/events/avro/AvroTrust.java)
+instead of relying on the `-Dorg.apache.avro.SERIALIZABLE_PACKAGES` JVM flag.
+
+**Where the conversion happens.** The outbox table still stores the domain record as Jackson JSON —
+`namastack.outbox.kafka.enable-json` is off only because it would otherwise inject
+`JacksonJsonSerializer` as the Kafka value serializer. At relay time,
+[`KafkaOutboxRoutingConfig`](order-service/src/main/java/com/demo/order/config/KafkaOutboxRoutingConfig.java)
+applies `route.mapping(...)` → [`AvroEventMapper`](common-events/src/main/java/com/demo/events/avro/AvroEventMapper.java)
+to turn the stored record into the generated `SpecificRecord`; the listener maps it back before the
+inbox claim. Neither service's business code sees an Avro type, and because the mapping is a pure
+function, a retried or replayed record produces byte-identical Avro — the property the inbox needs.
+
+**Class-name coupling.** None on the wire: the schema's full name (`com.demo.events.avro.OrderCreated`)
+is the contract, there is no `__TypeId__` header and no trusted-packages list. Each service is free
+to rename its internal packages; only the `.avsc` namespace is shared.
 
 **Retention is the dedup window.** `demo.inbox.cleanup.retention` (default 7 days) bounds the
 `inbox_message` table. Anything redelivered after it is processed again, so it must stay comfortably

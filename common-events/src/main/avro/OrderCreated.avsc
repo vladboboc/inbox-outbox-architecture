@@ -1,0 +1,40 @@
+{
+  "type": "record",
+  "name": "OrderCreated",
+  "namespace": "com.demo.events.avro",
+  "doc": "Published on orders.v1 when an order is accepted. Wire contract; the in-process form is com.demo.events.OrderCreated.",
+  "fields": [
+    {
+      "name": "eventId",
+      "type": "string",
+      "doc": "Stable, globally unique id for this event. The consumer-side inbox idempotency key: every redelivery of the same event carries the same value."
+    },
+    {
+      "name": "orderId",
+      "type": "string",
+      "doc": "Aggregate id. Also the Kafka record key, which pins ordering and partitioning per order."
+    },
+    {
+      "name": "customerId",
+      "type": "string"
+    },
+    {
+      "name": "totalAmount",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 12,
+        "scale": 2
+      },
+      "doc": "Order total. precision/scale mirror the NUMERIC(12,2) columns on both services' tables."
+    },
+    {
+      "name": "occurredAt",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "When the business fact occurred, not when it was published."
+    }
+  ]
+}

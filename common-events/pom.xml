@@ -12,7 +12,8 @@
 
     <artifactId>common-events</artifactId>
     <name>common-events</name>
-    <description>Shared event contracts published on Kafka. No Spring, no persistence.</description>
+    <description>Shared event contracts: the Avro schemas published on Kafka, the SpecificRecord classes
+        generated from them, and the in-process event records. No Spring, no persistence.</description>
 
     <dependencies>
         <!-- Only for the @OutboxEvent annotation on declaratively-published events.
@@ -21,8 +22,53 @@
             <groupId>io.namastack</groupId>
             <artifactId>namastack-outbox-api</artifactId>
         </dependency>
+        <!-- Runtime for the generated SpecificRecord classes (SpecificRecordBase, logical-type
+             conversions for BigDecimal and Instant). -->
+        <dependency>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro</artifactId>
+        </dependency>
+
+        <!-- ===== test ===== -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <!-- No spring-boot-maven-plugin here: this is a plain library jar, and Boot 4 only repackages
          where the plugin is declared explicitly. -->
+    <build>
+        <plugins>
+            <!-- Generates com.demo.events.avro.* from src/main/avro/*.avsc at generate-sources and
+                 registers the output directory as a compile source root. -->
+            <plugin>
+                <groupId>org.apache.avro</groupId>
+                <artifactId>avro-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>schema</goal>
+                        </goals>
+                        <configuration>
+                            <sourceDirectory>${project.basedir}/src/main/avro</sourceDirectory>
+                            <outputDirectory>${project.build.directory}/generated-sources/avro</outputDirectory>
+                            <!-- java.lang.String fields instead of CharSequence/Utf8, so the mapper
+                                 and the inbox (which rejects blank ids) work on plain Strings. -->
+                            <stringType>String</stringType>
+                            <!-- decimal logical type -> java.math.BigDecimal instead of raw bytes. -->
+                            <enableDecimalLogicalType>true</enableDecimalLogicalType>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>

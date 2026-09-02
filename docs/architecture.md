@@ -64,8 +64,9 @@ Why each step matters:
   system can never be in a state where work happened but was not recorded as having happened.
 
 The idempotency key is `eventId`, carried **in the payload** and generated inside the producer's
-transaction. The outbox stores the serialized payload once and replays those same bytes, so every
-duplicate carries an identical id.
+transaction. The outbox stores the domain record once; at relay time the routing maps it to its Avro
+`SpecificRecord` (a pure function of the stored record) and `KafkaAvroSerializer` writes it, so every
+retry or replay produces identical bytes and an identical id.
 
 ---
 
@@ -144,9 +145,11 @@ flowchart TB
 
     OS --> ODB
     SS --> SDB
-    OS -->|"orders.v1<br/>orders.v1.cancelled"| kafka
+    OS -->|"orders.v1<br/>orders.v1.cancelled<br/>(Avro)"| kafka
     kafka --> SS
     SS -->|"orders.v1.DLT"| kafka
+    OS -.->|"register schema"| SR
+    SS -.->|"fetch schema by id"| SR
 
     kafka --- SR
     kafka --- KEXP

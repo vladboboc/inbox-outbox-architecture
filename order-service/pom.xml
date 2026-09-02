@@ -37,6 +37,14 @@
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
+        <!-- Confluent's KafkaAvroSerializer: Avro binary prefixed with the magic byte + schema id,
+             schemas auto-registered in Schema Registry. Configured purely through spring.kafka.*
+             (value-serializer + schema.registry.url); no code references it. -->
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-avro-serializer</artifactId>
+            <scope>runtime</scope>
+        </dependency>
 
         <!-- ===== namastack outbox =====
              starter-jpa bundles only api + core + jpa + jackson.

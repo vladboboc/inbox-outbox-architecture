@@ -33,7 +33,24 @@
         <!-- namastack-outbox 1.9.0 builds against spring-boot-dependencies 4.1.1,
              which is exactly the parent version above. Keep them in lockstep. -->
         <namastack-outbox.version>1.9.0</namastack-outbox.version>
+
+        <!-- Confluent serde version tracks the cp-kafka / cp-schema-registry images in
+             docker-compose.yml. CP 8.2 is built on Apache Kafka 4.2, the same line Boot pins
+             kafka-clients to (4.2.1), so serializer and client agree on the wire protocol. -->
+        <confluent.version>8.2.2</confluent.version>
+        <!-- Pinned in one place so the runtime avro jar in every module is the exact version the
+             avro-maven-plugin generated the SpecificRecord classes with. -->
+        <avro.version>1.12.2</avro.version>
     </properties>
+
+    <!-- Confluent publishes kafka-avro-serializer and the schema-registry client to its own
+         repository, not to Maven Central. -->
+    <repositories>
+        <repository>
+            <id>confluent</id>
+            <url>https://packages.confluent.io/maven/</url>
+        </repository>
+    </repositories>
 
     <dependencyManagement>
         <dependencies>
@@ -44,7 +61,29 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <dependency>
+                <groupId>io.confluent</groupId>
+                <artifactId>kafka-avro-serializer</artifactId>
+                <version>${confluent.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.avro</groupId>
+                <artifactId>avro</artifactId>
+                <version>${avro.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.avro</groupId>
+                    <artifactId>avro-maven-plugin</artifactId>
+                    <version>${avro.version}</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
 
 </project>

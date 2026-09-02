@@ -2,6 +2,7 @@ package com.demo.shipping;
 
 import com.demo.events.OrderCancelled;
 import com.demo.events.OrderCreated;
+import com.demo.events.avro.AvroEventMapper;
 import com.demo.inbox.InboxGuard;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
@@ -34,6 +35,11 @@ import java.nio.charset.StandardCharsets;
  * <p>{@code @Transactional} covers the database only. The Kafka offset commit is a separate,
  * non-atomic step, and that is exactly the gap the inbox exists to cover: if the offset commit
  * fails after the database commit, Kafka redelivers and the claim turns the replay into a no-op.
+ *
+ * <p>Payloads arrive as the generated Avro classes ({@code com.demo.events.avro.*}, materialised
+ * by {@code KafkaAvroDeserializer} with {@code specific.avro.reader}) and are mapped to the domain
+ * records on the first line, so the inbox guard and {@link ShipmentService} stay format-agnostic.
+ * The Avro types are referenced fully qualified: they share simple names with the domain records.
  */
 @Component
 public class OrderEventListener {
@@ -58,11 +64,12 @@ public class OrderEventListener {
             containerFactory = "kafkaListenerContainerFactory")
     @Transactional
     public void onOrderCreated(
-            @Payload OrderCreated event,
+            @Payload com.demo.events.avro.OrderCreated payload,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
             @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
             @Header(KafkaHeaders.OFFSET) long offset) {
 
+        OrderCreated event = AvroEventMapper.fromAvro(payload);
         if (!inboxGuard.claim(event.eventId(), CONSUMER, topic, partition, offset)) {
             return;
         }
@@ -76,11 +83,12 @@ public class OrderEventListener {
             containerFactory = "kafkaListenerContainerFactory")
     @Transactional
     public void onOrderCancelled(
-            @Payload OrderCancelled event,
+            @Payload com.demo.events.avro.OrderCancelled payload,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
             @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
             @Header(KafkaHeaders.OFFSET) long offset) {
 
+        OrderCancelled event = AvroEventMapper.fromAvro(payload);
         if (!inboxGuard.claim(event.eventId(), CONSUMER, topic, partition, offset)) {
             return;
         }

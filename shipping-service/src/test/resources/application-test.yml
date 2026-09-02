@@ -7,6 +7,10 @@ spring:
     enabled: true
   kafka:
     bootstrap-servers: localhost:1
+    properties:
+      # In-JVM mock registry shared by every serde using this scope: the app's consumer and the
+      # DLT/test producer resolve schema ids against the same map, no registry container needed.
+      schema.registry.url: mock://shipping-test
     listener:
       # These tests exercise the claim-plus-write transaction directly. Starting the listener
       # containers would only add a broker dependency and startup latency without testing more.

@@ -688,7 +688,8 @@ body.help-open #help{display:grid}
     <tr><td><b>Java</b></td><td>25 — records, sealed, virtual threads</td></tr>
     <tr><td><b>Spring Boot</b></td><td>4.1.1 — namastack's exact baseline</td></tr>
     <tr><td><b>namastack-outbox</b></td><td>1.9.0 — BOM + five modules</td></tr>
-    <tr><td>Jackson</td><td><b>3</b>.1.5 — <code class="i">tools.jackson.*</code></td></tr>
+    <tr><td>Jackson</td><td><b>3</b>.1.5 — <code class="i">tools.jackson.*</code> (REST + outbox table)</td></tr>
+    <tr><td>Avro / Confluent serde</td><td>1.12.2 / 8.2.2 — Schema Registry-backed wire format</td></tr>
     <tr><td>Confluent Platform</td><td>8.2.2 — KRaft, no ZooKeeper</td></tr>
     <tr><td>PostgreSQL</td><td>17.10 — one instance, <b>two</b> databases</td></tr>
     <tr><td>Testcontainers</td><td>2.0.5 — real Postgres &amp; Kafka</td></tr>
@@ -842,7 +843,7 @@ body.help-open #help{display:grid}
       <p style="font-size:20px;color:var(--faint);margin-top:16px">Grafana (<span class="warnc">:3000</span>) — "records completed" ticks up; publish p95 visible on the latency panel.</p>
     </div>
   </div>
-</div></div><aside class="notes"><p>Deliberately boring — that's the point. Say it: "this is the demo every talk shows; the next four are the ones they don't."</p><p><strong>Keep the ORD-XXXXXXXX visible</strong> (or copy it) — the duplicate and cancel demos reuse it. If Conduktor is up, one quick look at the message: key, eventId header, traceId header, plain-JSON body.</p></aside></section>
+</div></div><aside class="notes"><p>Deliberately boring — that's the point. Say it: "this is the demo every talk shows; the next four are the ones they don't."</p><p><strong>Keep the ORD-XXXXXXXX visible</strong> (or copy it) — the duplicate and cancel demos reuse it. If Conduktor is up, one quick look at the message: key, eventId header, traceId header, Avro body decoded through the registry schema (<code>orders.v1-value</code>).</p></aside></section>
 <section class="slide" id="s17" data-num="17" data-sec="F" data-secname="Demo I"       data-until="1680" data-steps="7" data-title="Demo — kill Kafka"><div class="canvas"><div class="kicker">demo · the core proof</div>
 <h2 class="t" style="font-size:42px">Kill Kafka. Keep taking orders.</h2>
 <div class="split" style="margin-top:10px">
@@ -1309,7 +1310,7 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
   <li><code class="i">delete-completed-records: true</code> — or a scheduled purge. The actuator <code class="i">DELETE</code> is a manual lever, not a strategy.</li>
   <li>Create <strong>every</strong> <code class="i">.DLT</code> topic up front (auto-create stays off) — and <strong>alert on the DLT listener</strong>; a dead-lettered event is an incident, not a log line.</li>
   <li>Size <code class="i">demo.inbox.cleanup.retention</code> comfortably <strong>above topic retention</strong> — it is the dedup window.</li>
-  <li>Registry-backed contracts: swap <code class="i">JacksonJsonSerializer</code> → Confluent's <code class="i">KafkaJsonSchemaSerializer</code>. Outbox and inbox logic <b>unchanged</b>.</li>
+  <li>Registry-backed contracts are in: Avro via <code class="i">KafkaAvroSerializer</code>, converted at relay time in <code class="i">route.mapping</code>. Next step: register schemas from CI, <code class="i">auto.register.schemas=false</code>.</li>
   <li>Dashboards that answer questions: backlog <span class="muted">(new + failed)</span>, publish p95/p99, duplicates suppressed, consumer lag.</li>
   <li>Load-test the relay: instances claim outbox partitions and rebalance by heartbeat <span class="muted">(5 s beat / 30 s stale / 10 s rebalance here)</span> — verify failover before prod does it for you.</li>
 </ul></div><aside class="notes"><p><strong>Designated skip slide.</strong> If the timer is amber by slide 28, jump straight to takeaways — this list is in the repo README anyway.</p><p>If kept: the DLT-alert bullet ties back to the missing-topic confession on slide 25.</p></aside></section>
@@ -1379,6 +1380,7 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
   <tr><td>processing.delete-completed-records</td><td>false</td><td><span class="muted">same</span></td></tr>
   <tr><td>instance.heartbeat · stale-timeout · rebalance</td><td>5s · 30s · 10s</td><td><span class="muted">same</span></td></tr>
   <tr><td>kafka.default-topic</td><td>outbox-events</td><td><b class="warnc">domain-events</b></td></tr>
+  <tr><td>kafka.enable-json</td><td>true <span class="muted">— injects JacksonJsonSerializer</span></td><td><b class="warnc">false</b> <span class="muted">— Confluent Avro instead</span></td></tr>
 </table>
 <div class="foot">The override that matters: <b>max-retries defaults to 3</b> — on defaults, a dead cluster turns rows <code class="i">FAILED</code> after ~14s of backoff (2+4+8), before the brokers even re-form quorum. Ten retries capped at 30s keep the relay trying for ≈3½ minutes.</div></div><aside class="notes"><p>Source: <code>META-INF/spring-configuration-metadata.json</code> inside <code>namastack-outbox-core-1.9.0.jar</code> — the artefact the build resolves, not the docs site. Property description confirms max-retries counts <em>retry</em> attempts after the first try.</p><p><strong>Q&amp;A ammo, "is 10 the default?":</strong> no — 3. The demo raises it because the kill-Kafka demo needs the relay still retrying after a multi-minute outage; on defaults the rows would give up while the brokers are still re-forming quorum (~20–30s), and slide 17’s "the recovery is the pattern" line would be a lie.</p><p>Worth saying if asked: stop-on-first-failure=true and delete-completed-records=false are <em>defaults</em> — the yml restates them for narration. And the routing fallback topic is a rename: outbox-events → domain-events.</p></aside></section>
 </main>

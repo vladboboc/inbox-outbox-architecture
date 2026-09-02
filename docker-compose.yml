@@ -150,10 +150,17 @@ services:
     depends_on:
       app-postgres: {condition: service_healthy}
       kafka-1: {condition: service_healthy}
+      # The outbox relay registers the Avro schema on its first send; with the registry still
+      # starting that send fails and the record simply waits for the next retry, but the
+      # dependency spares the demo a burst of spurious failure_count increments.
+      schema-registry: {condition: service_healthy}
       topic-init: {condition: service_completed_successfully}
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://app-postgres:5432/orderdb
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      # Binds to spring.kafka.properties.schema.registry.url (the common key, so it reaches every
+      # Kafka client the service builds).
+      SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
       # 60% of a 1 GB limit leaves room for metaspace, thread stacks and direct buffers. At the
       # image default of 70% the container sat at ~97% of its limit, one traffic spike from an
       # OOM kill.
@@ -182,10 +189,13 @@ services:
     depends_on:
       app-postgres: {condition: service_healthy}
       kafka-1: {condition: service_healthy}
+      # The consumer resolves schema ids against the registry on the first record it reads.
+      schema-registry: {condition: service_healthy}
       topic-init: {condition: service_completed_successfully}
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://app-postgres:5432/shippingdb
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
       # See order-service: 60% of the limit, not the image default of 70%.
       JAVA_OPTS: "-XX:MaxRAMPercentage=60 -XX:+UseZGC"
     healthcheck:

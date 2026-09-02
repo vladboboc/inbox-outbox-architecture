@@ -4,6 +4,7 @@ import com.demo.order.OrderEntity;
 import com.demo.order.OrderService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpStatus;
@@ -32,7 +33,10 @@ public class OrderController {
 
     public record CreateOrderRequest(
             @NotBlank String customerId,
-            @NotNull @DecimalMin("0.01") BigDecimal totalAmount) {}
+            // decimal(12,2) in OrderCreated.avsc and NUMERIC(12,2) in the table. Rejecting an
+            // over-long amount here returns a 400; letting it through would commit an outbox row the
+            // Avro serializer can never encode, which fails on every retry.
+            @NotNull @DecimalMin("0.01") @Digits(integer = 10, fraction = 2) BigDecimal totalAmount) {}
 
     public record OrderResponse(
             String id,

@@ -46,6 +46,13 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-kafka</artifactId>
         </dependency>
+        <!-- KafkaAvroDeserializer for the listeners (configured in application.yml) and
+             KafkaAvroSerializer for the dead-letter producer, which KafkaConsumerConfig instantiates
+             directly; hence compile scope here, unlike order-service. -->
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-avro-serializer</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.flywaydb</groupId>

@@ -32,10 +32,22 @@ spring:
 
   kafka:
     bootstrap-servers: localhost:19092,localhost:29092,localhost:39092
+    properties:
+      # Common (not producer-scoped) on purpose: spring.kafka.properties.* feeds producer, consumer
+      # and admin clients alike, so one key -- and one SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL
+      # env var in docker-compose -- covers every client. A producer-scoped copy would override
+      # this one and silently ignore the compose value.
+      schema.registry.url: http://localhost:8081
     producer:
       # acks=all + the brokers' min.insync.replicas=2 is what makes the outbox relay's
       # blocking send a real durability guarantee rather than fire-and-forget.
       acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # Confluent wire format: 0x00 magic byte + 4-byte schema id + Avro binary. The schema is
+      # registered under <topic>-value on first use (auto.register.schemas defaults to true; in
+      # production register schemas in CI and set it to false). The payload reaching this
+      # serializer is already the generated SpecificRecord -- see KafkaOutboxRoutingConfig.
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
       properties:
         enable.idempotence: true
         max.in.flight.requests.per.connection: 5
@@ -44,10 +56,6 @@ spring:
         # Fail fast when brokers are down so the record is retried by the outbox poller
         # instead of blocking a relay thread for two minutes.
         max.block.ms: 8000
-        # Logical type aliases keep the wire format free of Java class names, so the two
-        # services are not coupled through __TypeId__ FQCNs.
-        spring.json.type.mapping: >-
-          orderCreated:com.demo.events.OrderCreated,orderCancelled:com.demo.events.OrderCancelled
 
 namastack:
   outbox:
@@ -80,9 +88,12 @@ namastack:
       rebalance-interval: 10s
     kafka:
       enabled: true
-      # Contributes JacksonJsonSerializer / JacksonJsonDeserializer (Jackson 3).
-      # This is plain JSON, not Confluent's schema-registry wire format.
-      enable-json: true
+      # Defaults to true, which imports a jar-internal property source setting Spring Kafka's
+      # JacksonJsonSerializer as the producer's value-serializer. Off, because the wire format is
+      # Confluent Avro (spring.kafka.producer.value-serializer above). Note this only concerns
+      # Kafka: the outbox table still stores the payload as Jackson JSON via namastack's own
+      # OutboxPayloadSerializer, which is unrelated to this flag.
+      enable-json: false
       default-topic: domain-events
 
 server:
