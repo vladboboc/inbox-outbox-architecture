@@ -4,6 +4,7 @@ import com.demo.events.OrderCreated;
 import com.demo.events.avro.AvroEventMapper;
 import com.demo.inbox.InboxMessageRepository;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
@@ -16,6 +17,7 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.MessageListenerContainer;
+import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.kafka.test.utils.ContainerTestUtils;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.junit.jupiter.Container;
@@ -24,6 +26,7 @@ import org.testcontainers.kafka.ConfluentKafkaContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -119,12 +122,26 @@ class AvroConsumerIntegrationTest {
                                 var record = records.iterator().next();
                                 assertThat(record.key()).isEqualTo(poison.orderId());
                                 assertThat(record.value()[0]).as("Confluent magic byte").isEqualTo((byte) 0);
+                                // The diagnostics the DLT listener logs come from these headers; the
+                                // recoverer writes kafka_dlt-*, not the retry-topic kafka_original-*.
+                                assertThat(headerText(record, KafkaHeaders.DLT_ORIGINAL_TOPIC))
+                                        .isEqualTo("orders.v1");
+                                assertThat(headerText(record, KafkaHeaders.DLT_EXCEPTION_CAUSE_FQCN))
+                                        .isEqualTo(IllegalStateException.class.getName());
+                                assertThat(headerText(record, KafkaHeaders.DLT_EXCEPTION_MESSAGE))
+                                        .contains(ShipmentService.POISON_CUSTOMER_ID);
                             });
         }
 
         // Every attempt rolled back with the exception, so the inbox has no record of the event.
         assertThat(inboxMessageRepository.countByConsumer(CONSUMER)).isZero();
         assertThat(shipmentRepository.findByOrderId("ORD-AVRO-POISON")).isEmpty();
+    }
+
+    private static String headerText(ConsumerRecord<String, byte[]> record, String name) {
+        var header = record.headers().lastHeader(name);
+        assertThat(header).as("header %s", name).isNotNull();
+        return new String(header.value(), StandardCharsets.UTF_8);
     }
 
     private static KafkaConsumer<String, byte[]> rawConsumer() {
