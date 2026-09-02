@@ -304,9 +304,10 @@ In production, register schemas from CI and set `auto.register.schemas=false`.
 **Avro's class allow-list.** Avro ≥ 1.12.1 refuses to load any class by name unless it is trusted,
 and `KafkaAvroDeserializer` with `specific.avro.reader` resolves the schema's full name to the
 generated class exactly that way — the symptom is `SecurityException: Forbidden
-com.demo.events.avro.OrderCreated! This class is not trusted…`. Both services register the generated
-classes at startup via [`AvroTrust`](common-events/src/main/java/com/demo/events/avro/AvroTrust.java)
-instead of relying on the `-Dorg.apache.avro.SERIALIZABLE_PACKAGES` JVM flag.
+com.demo.events.avro.OrderCreated! This class is not trusted…`. Only JVMs that deserialize into the
+generated classes are affected: shipping-service registers them at startup via
+[`AvroTrust`](common-events/src/main/java/com/demo/events/avro/AvroTrust.java) rather than relying on
+the `-Dorg.apache.avro.SERIALIZABLE_PACKAGES` JVM flag, and the producer needs nothing.
 
 **Where the conversion happens.** The outbox table still stores the domain record as Jackson JSON —
 `namastack.outbox.kafka.enable-json` is off only because it would otherwise inject

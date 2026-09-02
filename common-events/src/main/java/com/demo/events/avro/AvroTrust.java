@@ -14,7 +14,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * through {@code SpecificData.getClass}, which fails with {@code SecurityException: Forbidden ...}
  * until the class is trusted. The alternative is the JVM flag
  * {@code -Dorg.apache.avro.SERIALIZABLE_PACKAGES=com.demo.events.avro}; doing it in code means the
- * services and the tests cannot forget it.
+ * consumer and its tests cannot forget it.
+ *
+ * <p>Only JVMs that deserialize <em>into</em> the generated classes need this: the specific-reader
+ * consumer and anything that exercises that path in tests. A producer works from the record instance
+ * and never resolves a class by name, and a {@code GenericRecord} consumer never instantiates the
+ * class, so neither calls this.
  *
  * <p>The existing global predicate is kept and extended rather than replaced, so anything Avro
  * trusts by default (boxed primitives, {@code String}, {@code BigDecimal}) stays trusted.

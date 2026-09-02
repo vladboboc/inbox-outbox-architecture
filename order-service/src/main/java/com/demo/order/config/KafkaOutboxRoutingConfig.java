@@ -3,7 +3,6 @@ package com.demo.order.config;
 import com.demo.events.OrderCancelled;
 import com.demo.events.OrderCreated;
 import com.demo.events.avro.AvroEventMapper;
-import com.demo.events.avro.AvroTrust;
 import io.namastack.outbox.kafka.KafkaOutboxRouting;
 import io.namastack.outbox.routing.selector.OutboxPayloadSelector;
 import org.springframework.context.annotation.Bean;
@@ -33,13 +32,6 @@ import java.util.Map;
  */
 @Configuration
 public class KafkaOutboxRoutingConfig {
-
-    static {
-        // The serializer works from the record instance and does not resolve classes by name, but
-        // Avro's allow-list applies to any schema-to-class lookup; registering here keeps the
-        // producer safe should one be introduced (e.g. a debugging console consumer in-process).
-        AvroTrust.trustEventSchemas();
-    }
 
     @Bean
     public KafkaOutboxRouting kafkaOutboxRouting() {
