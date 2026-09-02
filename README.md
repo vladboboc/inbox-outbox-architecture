@@ -83,6 +83,10 @@ sequenceDiagram
 **[→ Full diagrams](docs/architecture.md)** — failure modes, container topology, and which metric
 answers which question.
 
+**[→ Talk deck](docs/presentation.html)** — self-contained slide deck for presenting this POC
+(open in a browser, `→` to advance, `?` for keys): animated failure walkthroughs plus the exact
+live-demo commands below.
+
 ### Where the guarantees come from
 
 1. `outbox.schedule()` writes inside the business transaction, so the event and the order are atomic.

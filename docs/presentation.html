@@ -1,0 +1,1558 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Losing Messages Is a Choice — Transactional Outbox &amp; Idempotent Inbox</title>
+<style>
+/* ============================== tokens ============================== */
+:root{
+  --bg:#0e1117; --surface:#161b26; --surface2:#1d2432; --line:#2a3245;
+  --text:#e9edf5; --muted:#98a2b8; --faint:#5b657a;
+  --producer:#4da3ff; --kafka:#f5a623; --consumer:#3ecf8e;
+  --danger:#ff5d5d; --warn:#f5c542; --violet:#8f7df0;
+  --mono:"Cascadia Code",Consolas,"JetBrains Mono",Menlo,monospace;
+  --s:1; --ts:.15;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--text); overflow:hidden;
+  font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:#31537d;color:#fff}
+
+/* section accents */
+[data-sec="A"]{--acc:var(--danger)}   [data-sec="B"]{--acc:var(--violet)}
+[data-sec="C"]{--acc:var(--kafka)}    [data-sec="D"]{--acc:#9fb2d8}
+[data-sec="E"]{--acc:var(--producer)} [data-sec="F"]{--acc:var(--kafka)}
+[data-sec="G"]{--acc:var(--consumer)} [data-sec="H"]{--acc:var(--kafka)}
+[data-sec="I"]{--acc:var(--warn)}     [data-sec="J"]{--acc:var(--consumer)}
+[data-sec="X"]{--acc:var(--faint)}
+
+/* ============================== slides ============================== */
+.slide{
+  position:fixed; inset:0; display:grid; place-items:center;
+  opacity:0; visibility:hidden;
+  transition:opacity .3s ease, visibility 0s linear .3s;
+}
+.slide.current{opacity:1;visibility:visible;transition:opacity .3s ease, visibility 0s;z-index:2}
+.canvas{
+  width:1280px;height:720px;flex:none;position:relative;
+  transform:scale(var(--s));transform-origin:center;
+  padding:56px 64px;
+}
+.notes{display:none}
+
+/* ============================ typography ============================ */
+.kicker{font-size:21px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--acc,#98a2b8);margin-bottom:10px}
+h2.t{font-size:50px;font-weight:750;letter-spacing:-.01em;line-height:1.12;margin-bottom:10px}
+.sub{font-size:26px;color:var(--muted);margin-bottom:26px;line-height:1.4}
+p.b{font-size:28px;line-height:1.5}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:34px}
+.split{display:grid;grid-template-columns:57fr 43fr;gap:30px;align-items:start}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px 28px}
+ul.list{list-style:none}
+ul.list li{font-size:27px;line-height:1.42;padding:10px 0 10px 36px;position:relative}
+ul.list li::before{content:"▪";position:absolute;left:4px;color:var(--acc,#98a2b8)}
+ul.list li strong{color:#fff}
+ul.list.tight li{padding:6px 0 6px 36px;font-size:25px}
+.big{font-size:42px;font-weight:700;line-height:1.3;text-align:center}
+.muted{color:var(--muted)}
+.small{font-size:22px}
+.acc{color:var(--acc)}
+.ok{color:var(--consumer)} .bad{color:var(--danger)} .warnc{color:var(--warn)}
+.prod{color:var(--producer)} .kaf{color:var(--kafka)} .cons{color:var(--consumer)}
+code.i{font-family:var(--mono);font-size:.88em;background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:2px 9px;white-space:nowrap}
+.foot{position:absolute;left:64px;right:64px;bottom:34px;font-size:22px;color:var(--muted);line-height:1.4}
+.banner{border-radius:12px;padding:18px 26px;font-size:27px;font-weight:650;line-height:1.35}
+.banner.g{background:#12291f;border:1px solid #2b5c44;color:#a9ecc8}
+.banner.r{background:#2b1518;border:1px solid #6b3038;color:#ffb3b3}
+.banner.y{background:#2b2413;border:1px solid #6b5a2a;color:#f5dc9a}
+table.tbl{border-collapse:collapse;width:100%}
+table.tbl th{font-size:18px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px 18px;border-bottom:2px solid var(--line)}
+table.tbl td{font-size:23px;padding:9px 18px;border-bottom:1px solid #1d2432;line-height:1.35;vertical-align:top}
+table.tbl td:first-child{white-space:nowrap}
+.strike{text-decoration:line-through;text-decoration-color:var(--danger);text-decoration-thickness:3px}
+
+/* =========================== code figures ========================== */
+figure.code{background:#10141c;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+figure.code figcaption{display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:18px;color:var(--muted);padding:12px 20px;border-bottom:1px solid var(--line);background:var(--surface)}
+figure.code figcaption .dotc{width:11px;height:11px;border-radius:50%;background:var(--acc,#98a2b8);flex:none}
+figure.code pre{font-family:var(--mono);font-size:22px;line-height:1.52;padding:18px 24px;overflow:hidden;tab-size:4}
+figure.code pre.sm{font-size:19px;line-height:1.45}
+.ln{display:inline;transition:opacity .3s,background .3s;border-radius:6px}
+.ln::before{content:attr(data-n);display:inline-block;width:52px;margin-right:24px;text-align:right;color:var(--faint);font-size:.82em}
+/* blocks without line numbers must not reserve the gutter — it clipped their code */
+.ln:not([data-n])::before{content:none;display:none}
+pre.focus .ln:not(.hl){opacity:.32}
+.ln.hl{background:#1b2333}
+/* tokens */
+.tk-kw{color:#c792ea} .tk-ann{color:#f5c542} .tk-type{color:#6fd3e8}
+.tk-str{color:#8ee6a8} .tk-num{color:#f78c6c} .tk-cm{color:#5f6b82;font-style:italic}
+.tk-mth{color:#82aaff} .tk-fld{color:#e2b7ff} .tk-sql{color:#f5a623;font-weight:600}
+figure.code pre, .cmd pre{color:#d6deeb}
+
+/* ============================ command cards ======================== */
+.cmd{background:#0b0e14;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:16px}
+.cmd .hdr{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line)}
+.cmd .lbl{font-size:16px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--kafka);border:1px solid #5c4a1e;background:#241d0d;border-radius:6px;padding:3px 10px}
+.cmd .what{font-size:19px;color:var(--muted);flex:1;min-width:0}
+.tabs{display:flex;gap:4px}
+.tabs .tb{font:600 15px/1 var(--mono);color:var(--muted);background:none;border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}
+body:not(.sh-ps) .tabs .tb[data-sh="bash"], body.sh-ps .tabs .tb[data-sh="ps"]{color:#0d1117;background:var(--kafka);border-color:var(--kafka)}
+.copy{font:600 15px/1 var(--mono);color:var(--text);background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer}
+.copy:hover{border-color:var(--muted)}
+.copy.did{color:var(--consumer);border-color:var(--consumer)}
+.cmd pre{font-family:var(--mono);font-size:21px;line-height:1.5;padding:14px 20px;white-space:pre-wrap;overflow-wrap:anywhere}
+.cmd pre .c-cmt{color:var(--faint)}
+body.sh-ps .cmd:has(pre[data-sh="ps"]) pre[data-sh="bash"]{display:none}
+body:not(.sh-ps) .cmd pre[data-sh="ps"]{display:none}
+.expect{border-left:3px solid var(--consumer);background:#0f1611;border-radius:0 10px 10px 0;padding:12px 18px;margin-bottom:14px}
+.expect .xh{font-size:15px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--consumer);margin-bottom:6px}
+.expect samp{display:block;font-family:var(--mono);font-size:20px;line-height:1.5;color:#9fd8ae;overflow-wrap:anywhere}
+.expect samp.err{color:#f0a1a1}
+.expect samp.warns{color:#e8cf8d}
+
+/* ======================== generic animation ======================== */
+svg{display:block}
+svg text{font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif}
+svg .mono{font-family:var(--mono)}
+[data-show]{opacity:0;visibility:hidden;transition:opacity .4s ease,transform .5s ease}
+[data-show].on{opacity:1;visibility:visible}
+svg [data-show],svg [data-now]{transform-box:fill-box;transform-origin:center}
+.on.fly-r{animation:flyr .55s ease both}
+.on.fly-l{animation:flyl .55s ease both}
+.on.fly-d{animation:flyd .5s ease both}
+.on.pop{animation:pop .45s cubic-bezier(.2,1.4,.4,1) both}
+@keyframes flyr{from{transform:translateX(-80px);opacity:0}}
+@keyframes flyl{from{transform:translateX(80px);opacity:0}}
+@keyframes flyd{from{transform:translateY(-55px);opacity:0}}
+@keyframes pop{from{transform:scale(.55);opacity:0}}
+.now.shk{animation:shake .55s ease 1}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.pulsering{animation:ring 1.15s ease-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes ring{from{transform:scale(.55);opacity:.95}to{transform:scale(1.9);opacity:0}}
+.now .flash-g,.now.flash-g{animation:flg .9s ease 1}
+@keyframes flg{0%{filter:drop-shadow(0 0 14px rgba(62,207,142,.95))}100%{filter:none}}
+.now .flash-r,.now.flash-r{animation:flr .9s ease 1}
+@keyframes flr{0%{filter:drop-shadow(0 0 14px rgba(255,93,93,.95))}100%{filter:none}}
+.dashline{stroke-dasharray:7 7;animation:dashmove 1.1s linear infinite}
+@keyframes dashmove{to{stroke-dashoffset:-14}}
+/* step dots */
+.dots{position:absolute;left:0;right:0;bottom:14px;display:flex;justify-content:center;gap:9px;z-index:5}
+.dots span{width:13px;height:13px;border-radius:50%;background:var(--surface2);border:1px solid var(--line);cursor:pointer;transition:background .2s}
+.dots span.done{background:var(--acc,#98a2b8);border-color:transparent}
+[data-hide].offh{opacity:0 !important;visibility:hidden !important}
+.swapcap{position:absolute;left:64px;right:64px;bottom:66px;font-size:24px;line-height:1.4;color:var(--text)}
+.capzone{position:relative}
+.capzone .swapcap{left:0;right:0;bottom:auto;top:0;font-size:22px}
+.tabchip{display:inline-block;font:600 17px var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:8px;padding:7px 14px;cursor:pointer;margin-left:10px;user-select:none}
+.tabchip:hover{color:var(--text);border-color:var(--muted)}
+svg .fly-r,svg .fly-R,svg .fly-l,svg .fly-L,svg .fly-d,svg .pop{transform-box:fill-box;transform-origin:center}
+.on .fly-r{animation:flyr .55s ease both}
+.on .fly-l{animation:flyl .55s ease both}
+.on .fly-d{animation:flyd .5s ease both}
+.on .pop{animation:pop .45s cubic-bezier(.2,1.4,.4,1) both}
+.on.fly-R,.on .fly-R{animation:flyR .7s ease both}
+.on.fly-L,.on .fly-L{animation:flyL .7s ease both}
+@keyframes flyR{from{transform:translateX(-210px);opacity:0}}
+@keyframes flyL{from{transform:translateX(210px);opacity:0}}
+.pulsering{opacity:0;animation:none}
+.pulsering.now{opacity:1;animation:ring 1.15s ease-out infinite}
+#s03 .ship{opacity:.45;transition:opacity .4s}
+#s03[data-step="9"] .ship,#s03[data-step="10"] .ship{opacity:1}
+#s02[data-step="1"] pre .ln:not(.l-a){opacity:.3}
+#s02[data-step="2"] pre .ln:not(.l-b){opacity:.3}
+#s02[data-step="3"] pre .ln{opacity:.45}
+#s11[data-step="1"] pre .ln:not(.l-a){opacity:.3}
+#s11[data-step="2"] pre .ln:not(.l-b){opacity:.3}
+#s11[data-step="3"] pre .ln:not(.l-c){opacity:.3}
+#s11[data-step="4"] pre .ln{opacity:.45}
+#s06 ul.list li{font-size:24px;padding:8px 0 8px 34px}
+#s10 table.tbl td{font-size:21px;padding:7px 16px}
+#s10 table.tbl th{font-size:16px}
+#s12 .cols p{margin-top:8px}
+#s15 ul.list.tight li{font-size:23px}
+#s20 ul.list li{font-size:25px}
+#s24 .card{padding:11px 20px}
+#s24 .card h3{font-size:22px;margin-bottom:4px}
+#s24 .card p{font-size:20px}
+#s25 ul.list li{font-size:23px;padding-bottom:12px;line-height:1.42}
+#s28 ul.list li{font-size:25px;padding:8px 0 8px 36px}
+#s31 ul.list li{font-size:23px}
+#s32 table.tbl td{font-size:18px;padding:4px 14px;line-height:1.3}
+#s32 table.tbl th{font-size:13px;padding:5px 14px}
+#s32 table.tbl td:first-child{font-family:var(--mono);font-size:16px;color:var(--muted)}
+#s32 .foot{font-size:19px;bottom:26px}
+.side .cmd .hdr{padding:5px 12px}
+.side .lbl{font-size:13px;padding:2px 8px}
+.side .what{font-size:16px}
+.side .cmd{margin-bottom:10px}
+.side .cmd pre{font-size:17px;line-height:1.42;padding:8px 12px}
+.side .expect{padding:8px 14px;margin-bottom:10px}
+.side .expect samp{font-size:16px;line-height:1.5}
+.side .xh{font-size:13px;margin-bottom:4px}
+#s10 .cluster li{font-size:22px}
+#s13 ul.list li{font-size:21px;padding:8px 0 8px 32px}
+#s14 ul.list li{font-size:21px;padding:8px 0 8px 32px}
+#s15 .cmd pre{font-size:19px}
+#s15 .expect samp{font-size:18px}
+#s15 ul.list.tight li{font-size:22px}
+#s13 figure.code pre{font-size:17px}
+#s14 figure.code pre{font-size:17px}
+#s19 figure.code pre{font-size:17px}
+#s19 .card p{font-size:19px !important;line-height:1.4 !important}
+#s19 .card{padding:14px 18px !important}
+#s20 ul.list li{font-size:24px;padding:8px 0 8px 34px}
+
+/* ================================ HUD =============================== */
+.hud{position:fixed;z-index:40;font-family:var(--mono);transition:opacity .4s}
+body.dim .hud{opacity:.12}
+#progress{top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,var(--producer),var(--kafka),var(--consumer));transition:width .25s ease}
+#seclabel{left:18px;bottom:12px;font-size:13px;color:var(--muted)}
+#seclabel b{color:var(--text);font-weight:600}
+#counter{right:18px;bottom:12px;font-size:13px;color:var(--muted)}
+#timerbox{left:50%;transform:translateX(-50%);bottom:10px;font-size:14px;color:var(--muted);cursor:pointer;display:none}
+#timerbox.onair{display:block}
+#timerbox.amber{color:var(--warn)} #timerbox.red{color:var(--danger)}
+.chev{position:fixed;z-index:40;bottom:36px;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:#151a24cc;color:var(--muted);font-size:19px;cursor:pointer;transition:opacity .4s}
+.chev:hover{color:var(--text)}
+#prevb{right:66px} #nextb{right:18px}
+body.dim .chev{opacity:.12}
+#hint{position:fixed;z-index:41;left:50%;bottom:56px;transform:translateX(-50%);background:#151a24ee;border:1px solid var(--line);border-radius:10px;padding:10px 22px;font:13px/1.6 var(--mono);color:var(--muted);transition:opacity .8s;pointer-events:none}
+#hint.gone{opacity:0}
+
+/* ============================= overview ============================= */
+body.overview #deck{position:fixed;inset:0;display:grid;grid-template-columns:repeat(6,1fr);gap:14px;align-content:start;padding:56px 24px 24px;overflow-y:auto;z-index:30;background:var(--bg)}
+body.overview .slide{position:relative;inset:auto;opacity:1;visibility:visible;aspect-ratio:16/9;overflow:hidden;border:1px solid #39435c;border-radius:10px;cursor:pointer;display:block;background:#12161f}
+body.overview .slide.current{outline:3px solid var(--kafka);outline-offset:2px}
+body.overview .canvas{position:absolute;top:0;left:0;transform:scale(var(--ts));transform-origin:top left}
+body.overview .slide::after{content:attr(data-num) " · " attr(data-title);position:absolute;left:0;right:0;bottom:0;padding:4px 9px;font:600 12px var(--mono);color:#c3cddf;background:#0b0e14e6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:2}
+body.overview .hud,body.overview .chev,body.overview .dots{display:none}
+#ovtitle{display:none}
+body.overview #ovtitle{display:block;position:fixed;top:16px;left:24px;z-index:31;font:600 15px var(--mono);color:var(--muted)}
+
+/* ============================ notes panel =========================== */
+#notes-panel{position:fixed;top:0;right:0;bottom:0;width:400px;z-index:35;background:#0b0d12f2;border-left:1px solid var(--line);padding:20px 24px;overflow-y:auto;display:none}
+body.notes-open #notes-panel{display:block}
+#notes-panel .nh{font:700 13px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--kafka);margin-bottom:4px}
+#notes-panel .nnext{font:13px var(--mono);color:var(--muted);margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+#notes-panel .nbody{font-size:15px;line-height:1.65;color:#c8d0e0}
+#notes-panel .nbody p{margin-bottom:10px}
+#notes-panel .nbody ul{margin:0 0 10px 18px}
+#notes-panel .nbody li{margin-bottom:7px}
+#notes-panel .nbody strong{color:#fff}
+#notes-panel .nbody code{font-family:var(--mono);font-size:13px;background:var(--surface2);border-radius:4px;padding:1px 5px}
+
+/* ============================ help overlay ========================== */
+#help{position:fixed;inset:0;z-index:50;background:#05070acc;display:none;place-items:center}
+body.help-open #help{display:grid}
+#help .hcard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:34px 44px;min-width:520px}
+#help h3{font-size:22px;margin-bottom:18px}
+#help table{border-collapse:collapse}
+#help td{font:14px/1.5 var(--mono);padding:6px 14px;color:var(--muted)}
+#help td:first-child{color:var(--text)}
+#help kbd{background:var(--surface2);border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:2px 9px;font-family:var(--mono)}
+
+/* =============================== print ============================== */
+@media print{
+  body{overflow:visible;background:#fff;color:#111}
+  .hud,.chev,#hint,#notes-panel,#help,.dots,#ovtitle{display:none !important}
+  #deck{display:block}
+  .slide{position:static;opacity:1;visibility:visible;display:block;break-after:page;page-break-after:always}
+  .canvas{transform:none;width:auto;height:auto;padding:24px 8px}
+  [data-show]{opacity:1 !important;visibility:visible !important;animation:none !important;transition:none !important}
+  .notes{display:block;font-size:12px;color:#333;border-top:1px solid #bbb;margin:10px 8px 0;padding-top:8px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01s !important;transition-duration:.01s !important}
+}
+</style>
+</head>
+<body>
+
+<div class="hud" id="progress"></div>
+<div class="hud" id="seclabel"></div>
+<div class="hud" id="timerbox" title="t start/pause · Shift+T reset">00:00</div>
+<div class="hud" id="counter"></div>
+<button class="chev" id="prevb" aria-label="previous">‹</button>
+<button class="chev" id="nextb" aria-label="next">›</button>
+<div id="hint">→ / space advance &nbsp;·&nbsp; O overview &nbsp;·&nbsp; S notes &nbsp;·&nbsp; T timer &nbsp;·&nbsp; ? help</div>
+<div id="ovtitle">Overview — click a slide, Esc to return</div>
+
+<main id="deck">
+<section class="slide" id="s01" data-num="1"  data-sec="A" data-secname="Opening"      data-until="300"  data-title="Losing Messages Is a Choice"><div class="canvas"><div style="height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center">
+  <div class="kicker" style="--acc:var(--kafka)">async patterns · live failures included · ±45 min</div>
+  <h1 style="font-size:78px;font-weight:800;letter-spacing:-.02em;line-height:1.07;margin-top:6px">Losing messages<br>is a <span style="color:var(--kafka)">choice</span>.</h1>
+  <p style="font-size:28px;color:var(--muted);margin-top:30px;line-height:1.5">Transactional <b style="color:var(--producer)">outbox</b> + idempotent <b style="color:var(--consumer)">inbox</b><br>Java 25 · Spring Boot 4.1 · Confluent Kafka 8.2 (KRaft)</p>
+  <div style="margin-top:52px;font-size:23px">Vlad Boboc — senior software developer</div>
+  <div style="font-size:20px;color:var(--faint);margin-top:10px">everything on these slides runs — repo <code class="i">inbox-outbox-architecture</code></div>
+</div></div><aside class="notes"><p><strong>Promise:</strong> by the end of this talk I will stop the entire Kafka cluster mid-demo, keep taking orders, and lose nothing. Then I'll deliver the same event twice and nothing double-ships.</p><p>Two patterns, one idea each. Everything shown is running code — repo link at the end.</p><p>Housekeeping: ~35 min slides + demos, leave ~5-10 for questions. Timer: press <code>t</code>.</p></aside></section>
+<section class="slide" id="s02" data-num="2"  data-sec="A" data-secname="Opening"      data-until="300"  data-steps="3" data-title="The code we've all shipped"><div class="canvas"><div class="kicker">the problem</div>
+<h2 class="t">The code we've all shipped</h2>
+<figure class="code" style="margin-top:12px">
+  <figcaption><span class="dotc" style="background:var(--danger)"></span>OrderService.java · the "obvious" version — simplified, but familiar</figcaption>
+  <pre><span class="ln" data-n="1"><span class="tk-ann">@Transactional</span></span>
+<span class="ln" data-n="2"><span class="tk-kw">public</span> <span class="tk-type">Order</span> <span class="tk-mth">createOrder</span>(<span class="tk-type">CreateOrderRequest</span> req) {</span>
+<span class="ln" data-n="3"> </span>
+<span class="ln l-a" data-n="4">    <span class="tk-type">Order</span> order = orderRepository.<span class="tk-mth">save</span>(<span class="tk-type">Order</span>.<span class="tk-mth">from</span>(req));      <span class="tk-cm">// ① the database</span></span>
+<span class="ln" data-n="5"> </span>
+<span class="ln l-b" data-n="6">    kafkaTemplate.<span class="tk-mth">send</span>(<span class="tk-str">"orders.v1"</span>, order.<span class="tk-mth">getId</span>(),           <span class="tk-cm">// ② the broker</span></span>
+<span class="ln l-b" data-n="7">            <span class="tk-kw">new</span> <span class="tk-type">OrderCreated</span>(order));</span>
+<span class="ln" data-n="8"> </span>
+<span class="ln" data-n="9">    <span class="tk-kw">return</span> order;                                            <span class="tk-cm">// → 201 Created</span></span>
+<span class="ln" data-n="10">}</span></pre>
+</figure>
+<p class="swapcap" data-show="0" data-hide="1"><span class="muted">One method. Two systems. It <i>looks</i> atomic.</span></p>
+<p class="swapcap" data-show="1" data-hide="2"><span class="ok">✔</span>&nbsp; The <b>save</b> is inside the transaction — a rollback un-inserts it.</p>
+<p class="swapcap" data-show="2" data-hide="3"><span class="bad">✘</span>&nbsp; The <b>send</b> is a network call. No database transaction has ever heard of it.</p>
+<p class="swapcap" data-show="3"><b>Which write does <code class="i">@Transactional</code> protect?</b> Exactly one. The other can fail — or succeed — independently. Pick your lie →</p></div><aside class="notes"><p>Ask the room: "who has this in production right now?" Wait for the laugh.</p><p>Step through with →: save (covered), send (not covered), punchline. Flipping the two lines doesn't help — that's the next slide's scenario B.</p><p>Deliberate: the POC repo contains NO such endpoint — no KafkaTemplate exists in order-service at all. This snippet is the strawman.</p></aside></section>
+<section class="slide" id="s03" data-num="3"  data-sec="A" data-secname="Opening"      data-until="300"  data-steps="10" data-title="Dual-write: two ways to lie to yourself"><div class="canvas"><div style="display:flex;justify-content:space-between;align-items:flex-end">
+  <div><div class="kicker">the problem</div><h2 class="t" style="font-size:44px">Dual-write: two ways to lie to yourself</h2></div>
+  <div style="padding-bottom:8px"><span class="tabchip" data-jump="1">A · commit, then send</span><span class="tabchip" data-jump="6">B · send, then commit</span></div>
+</div>
+<svg viewBox="0 88 1160 320" style="width:100%;margin-top:10px">
+  <defs>
+    <marker id="m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#98a2b8"/></marker>
+    <g id="env3"><rect width="46" height="32" rx="6" fill="#241d0d" stroke="#f5a623" stroke-width="1.6"/><path d="M3 5 L23 19 L43 5" fill="none" stroke="#f5a623" stroke-width="1.6"/></g>
+  </defs>
+  <!-- base -->
+  <circle cx="46" cy="185" r="16" fill="#1d2432" stroke="#98a2b8" stroke-width="1.5"/><text x="46" y="226" font-size="16" fill="#98a2b8" text-anchor="middle">client</text>
+  <rect x="120" y="110" width="300" height="150" rx="14" fill="#12161f" stroke="#4da3ff" stroke-width="2"/>
+  <text x="270" y="146" font-size="21" font-weight="700" fill="#cfe4ff" text-anchor="middle">order-service</text>
+  <text x="270" y="174" font-size="16" fill="#7f9bc4" text-anchor="middle">save(order) · send(event)</text>
+  <ellipse cx="270" cy="330" rx="66" ry="13" fill="#14243a" stroke="#4da3ff"/>
+  <rect x="204" y="330" width="132" height="52" fill="#14243a" stroke="#4da3ff"/>
+  <line x1="204" y1="330" x2="204" y2="382" stroke="#4da3ff"/><line x1="336" y1="330" x2="336" y2="382" stroke="#4da3ff"/>
+  <ellipse cx="270" cy="382" rx="66" ry="13" fill="#14243a" stroke="#4da3ff"/>
+  <text x="270" y="364" font-size="16" fill="#cfe4ff" text-anchor="middle">orderdb</text>
+  <line x1="270" y1="260" x2="270" y2="315" stroke="#4da3ff" stroke-width="2"/>
+  <rect x="580" y="130" width="210" height="110" rx="14" fill="#171310" stroke="#f5a623" stroke-width="2"/>
+  <text x="685" y="175" font-size="21" font-weight="700" fill="#ffd9a0" text-anchor="middle">Kafka</text>
+  <text x="685" y="205" font-size="15" fill="#8a713a" text-anchor="middle" font-family="Consolas,monospace">orders.v1</text>
+  <g class="ship">
+    <rect x="880" y="120" width="256" height="130" rx="14" fill="#101a14" stroke="#3ecf8e" stroke-width="2"/>
+    <text x="1008" y="156" font-size="20" font-weight="700" fill="#c9f2dd" text-anchor="middle">shipping-service</text>
+    <text x="1008" y="184" font-size="15" fill="#69b891" text-anchor="middle">consumes orders.v1</text>
+  </g>
+  <!-- scenario A -->
+  <g data-show="1" data-hide="6" class="fly-r"><line x1="70" y1="185" x2="112" y2="185" stroke="#98a2b8" stroke-width="2.4" marker-end="url(#m3)"/><text x="90" y="168" font-size="15" fill="#98a2b8" text-anchor="middle">POST</text></g>
+  <g data-show="2" data-hide="6" data-now="2" class="flash-g">
+    <rect x="188" y="300" width="164" height="108" rx="12" fill="none" stroke="#f5c542" stroke-width="2.5" stroke-dasharray="8 6"/>
+    <text x="270" y="294" font-size="14" fill="#f5c542" text-anchor="middle">tx commits ✓</text>
+  </g>
+  <g data-show="2" data-hide="6" class="pop"><text x="270" y="352" font-size="14" fill="#8ee6a8" text-anchor="middle" font-family="Consolas,monospace">ORD-91 · CUST-7 ✓</text></g>
+  <g data-show="2" data-hide="6" class="fly-l"><text x="86" y="146" font-size="17" fill="#3ecf8e" text-anchor="middle" font-weight="700">201 ✓</text></g>
+  <g data-show="3" data-hide="4" data-now="3" class="shk"><use href="#env3" x="450" y="165"/></g>
+  <g data-show="3" data-hide="6" class="pop"><text x="685" y="120" font-size="30" fill="#ff5d5d" text-anchor="middle" font-weight="800">✕</text><text x="685" y="266" font-size="15" fill="#ff8d8d" text-anchor="middle">unreachable</text></g>
+  <g data-show="4" data-hide="6" class="pop"><text x="270" y="232" font-size="17" fill="#ff8d8d" text-anchor="middle" font-family="Consolas,monospace">⚠ TimeoutException</text></g>
+  <!-- scenario B -->
+  <g data-show="6" class="fly-r"><line x1="70" y1="185" x2="112" y2="185" stroke="#98a2b8" stroke-width="2.4" marker-end="url(#m3)"/><text x="90" y="168" font-size="15" fill="#98a2b8" text-anchor="middle">POST</text></g>
+  <g data-show="7" data-hide="9" class="fly-R"><use href="#env3" x="500" y="165"/></g>
+  <g data-show="7" class="pop"><text x="685" y="120" font-size="19" fill="#3ecf8e" text-anchor="middle" font-weight="700">acked ✓</text></g>
+  <g data-show="8" data-now="8" class="flash-r">
+    <rect x="188" y="300" width="164" height="108" rx="12" fill="none" stroke="#ff5d5d" stroke-width="2.5" stroke-dasharray="8 6"/>
+    <text x="270" y="294" font-size="14" fill="#ff8d8d" text-anchor="middle">tx rolls back ✕</text>
+  </g>
+  <g data-show="8" data-hide="9" class="pop"><text x="270" y="352" font-size="14" fill="#ff8d8d" text-anchor="middle" font-family="Consolas,monospace">INSERT orders ✕</text></g>
+  <g data-show="8" class="pop"><text x="270" y="232" font-size="17" fill="#ff8d8d" text-anchor="middle" font-family="Consolas,monospace">⚠ constraint violation</text></g>
+  <g data-show="9" class="fly-R"><line x1="794" y1="185" x2="872" y2="185" stroke="#f5a623" stroke-width="2.4" marker-end="url(#m3)"/></g>
+  <g data-show="9" data-now="10" class="pop flash-r"><rect x="912" y="200" width="192" height="34" rx="8" fill="#0f2019" stroke="#3ecf8e"/><text x="1008" y="223" font-size="15" fill="#8ee6a8" text-anchor="middle" font-family="Consolas,monospace">SHP-17 → ORD-91 ???</text></g>
+</svg>
+<p class="swapcap" data-show="0" data-hide="1"><span class="muted">Same method, run twice — once per ordering. Click the chips or step with →</span></p>
+<p class="swapcap" data-show="1" data-hide="2"><b>A.</b> A request arrives. Save first, publish second — the "obvious" order.</p>
+<p class="swapcap" data-show="2" data-hide="3"><b>A.</b> The DB transaction commits. The order is real. <b>201 already went back.</b></p>
+<p class="swapcap" data-show="3" data-hide="4"><b>A.</b> Now the send — and Kafka is unreachable. The envelope dies in flight.</p>
+<p class="swapcap" data-show="4" data-hide="5"><b>A.</b> The exception lands in a catch block <i>after</i> the client got its 201. Retry how long? Logged where? Who replays it after a deploy?</p>
+<p class="swapcap" data-show="5" data-hide="6"><b class="bad">Lie № 1 — the silent row:</b> the order exists, the topic stays silent forever, downstream never ships. <span class="muted">Nobody even knows.</span></p>
+<p class="swapcap" data-show="6" data-hide="7"><b>B.</b> Fine — swap the order. Publish <i>first</i>, then save.</p>
+<p class="swapcap" data-show="7" data-hide="8"><b>B.</b> The event reaches Kafka. Durably. Irrevocably.</p>
+<p class="swapcap" data-show="8" data-hide="9"><b>B.</b> And <i>now</i> the DB write fails. Rollback. The order never existed.</p>
+<p class="swapcap" data-show="9" data-hide="10"><b>B.</b> But shipping already consumed the event…</p>
+<p class="swapcap" data-show="10"><b class="bad">Lie № 2 — the phantom event:</b> a shipment for an order that does not exist. <b>There is no ordering of two writes that fixes this.</b></p></div><aside class="notes"><p>THE argument slide — give it its full 2½ minutes. A = lost message (silent, found weeks later). B = phantom event (loud, found by an angry customer).</p><p>Close with the line on step 10: no ordering fixes it — the two failures are symmetric. Only making the second write part of the first transaction does, which is the next slide.</p><p>Tabs jump between scenarios during Q&A; <code>r</code> resets.</p></aside></section>
+<section class="slide" id="s04" data-num="4"  data-sec="A" data-secname="Opening"      data-until="300"  data-title="The fixes that don't fix it"><div class="canvas"><div class="kicker">the problem</div>
+<h2 class="t">The fixes that don't fix it</h2>
+<div class="cols" style="grid-template-columns:1fr 1fr 1fr;gap:22px;margin-top:28px">
+  <div class="card">
+    <h3 style="font-size:27px;margin-bottom:12px"><span class="strike">Two-phase commit</span></h3>
+    <p style="font-size:22px;color:var(--muted);line-height:1.45">Kafka exposes no XA resource to enlist. And even where 2PC exists, you buy a coordinator that must itself never fail — and pay it on every request.</p>
+  </div>
+  <div class="card">
+    <h3 style="font-size:27px;margin-bottom:12px"><span class="strike">Publish first, then save</span></h3>
+    <p style="font-size:22px;color:var(--muted);line-height:1.45">Now the DB write can fail <i>after</i> the send. You didn't remove the lie — you picked the other one: an event for an order that never existed.</p>
+  </div>
+  <div class="card">
+    <h3 style="font-size:27px;margin-bottom:12px"><span class="strike">catch &amp; retry the send</span></h3>
+    <p style="font-size:22px;color:var(--muted);line-height:1.45">Helps with blips. But the process can die between commit and send — then there is no code left to retry, and no record that anything was owed.</p>
+  </div>
+</div>
+<div class="banner y" style="margin-top:36px;font-size:29px;text-align:center">The row and the event must live or die <b>together</b> — and exactly one transactional<br>system is in the room: <b>the database</b>. So put the event <i>in</i> the database.</div></div><aside class="notes"><p>Walk the three tombstones quickly — the audience has tried at least one of them.</p><ul><li>2PC: also throughput death; nobody runs XA against Kafka.</li><li>Swap order: symmetric failure, worse to debug (phantom events).</li><li>Retry: the killer is the crash <strong>between</strong> commit and send — kill -9, OOM, deploy. Nothing to retry.</li></ul><p>The banner is the pivot sentence of the whole talk — read it verbatim, pause, next slide.</p></aside></section>
+<section class="slide" id="s05" data-num="5"  data-sec="B" data-secname="Fundamentals" data-until="510"  data-title="Delivery guarantees, honestly"><div class="canvas"><div class="kicker">fundamentals</div>
+<h2 class="t">Delivery guarantees, honestly</h2>
+<svg viewBox="0 0 1160 452" style="width:100%;margin-top:14px">
+  <defs><marker id="m5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#98a2b8"/></marker></defs>
+  <!-- lane 1 : at-most-once -->
+  <g>
+    <rect x="0" y="10" width="1160" height="128" rx="14" fill="#161b26"/>
+    <text x="26" y="48" font-size="23" font-weight="700" fill="#e9edf5">at-most-once</text>
+    <text x="26" y="76" font-size="18" fill="#5b657a">fire &amp; forget</text>
+    <rect x="300" y="42" width="118" height="56" rx="10" fill="#14243a" stroke="#4da3ff" stroke-width="1.5"/><text x="359" y="76" font-size="19" fill="#cfe4ff" text-anchor="middle">producer</text>
+    <line x1="424" y1="70" x2="600" y2="70" stroke="#98a2b8" stroke-width="2.2" marker-end="url(#m5)"/>
+    <text x="512" y="56" font-size="24" fill="#ff5d5d" text-anchor="middle" font-weight="700">✕</text>
+    <rect x="610" y="42" width="118" height="56" rx="10" fill="#1d2432" stroke="#2a3245" stroke-width="1.5" opacity=".55"/><text x="669" y="76" font-size="19" fill="#5b657a" text-anchor="middle">consumer</text>
+    <text x="790" y="66" font-size="19" fill="#98a2b8">message gone — <tspan fill="#ff8d8d">nobody knows</tspan></text>
+    <text x="790" y="94" font-size="18" fill="#5b657a">fine for metrics, hints, cache warmers</text>
+  </g>
+  <!-- lane 2 : at-least-once -->
+  <g transform="translate(0 152)">
+    <rect x="0" y="10" width="1160" height="128" rx="14" fill="#161b26" stroke="#4a3d1e" stroke-width="1.5"/>
+    <text x="26" y="48" font-size="23" font-weight="700" fill="#f5a623">at-least-once</text>
+    <text x="26" y="76" font-size="18" fill="#98a2b8">retry until acked</text>
+    <rect x="300" y="42" width="118" height="56" rx="10" fill="#14243a" stroke="#4da3ff" stroke-width="1.5"/><text x="359" y="76" font-size="19" fill="#cfe4ff" text-anchor="middle">producer</text>
+    <line x1="424" y1="58" x2="600" y2="58" stroke="#98a2b8" stroke-width="2.2" marker-end="url(#m5)"/>
+    <text x="512" y="46" font-size="16" fill="#98a2b8" text-anchor="middle">deliver ✓</text>
+    <line x1="600" y1="82" x2="500" y2="82" stroke="#ff5d5d" stroke-width="2" stroke-dasharray="6 5"/>
+    <text x="484" y="89" font-size="20" fill="#ff5d5d" text-anchor="middle">✕</text>
+    <text x="548" y="106" font-size="16" fill="#ff8d8d" text-anchor="middle">ack lost</text>
+    <line x1="424" y1="116" x2="600" y2="116" stroke="#f5a623" stroke-width="2.2" marker-end="url(#m5)"/>
+    <text x="512" y="134" font-size="16" fill="#f5a623" text-anchor="middle">resend</text>
+    <rect x="610" y="42" width="118" height="56" rx="10" fill="#12291f" stroke="#3ecf8e" stroke-width="1.5"/><text x="669" y="76" font-size="19" fill="#c9f2dd" text-anchor="middle">consumer</text>
+    <rect x="700" y="92" width="46" height="30" rx="7" fill="#241d0d" stroke="#f5a623"/><text x="723" y="113" font-size="17" fill="#f5c542" text-anchor="middle">×2</text>
+    <text x="790" y="66" font-size="19" fill="#e9edf5">nothing lost — but <tspan fill="#f5c542">duplicates arrive</tspan></text>
+    <text x="790" y="94" font-size="18" fill="#98a2b8">the only question left: <tspan fill="#e9edf5">who absorbs them?</tspan></text>
+  </g>
+  <!-- lane 3 : exactly-once -->
+  <g transform="translate(0 304)">
+    <rect x="0" y="10" width="1160" height="128" rx="14" fill="#161b26"/>
+    <text x="26" y="48" font-size="23" font-weight="700" fill="#8f7df0">exactly-once</text>
+    <text x="26" y="76" font-size="18" fill="#5b657a">a scope, not a setting</text>
+    <rect x="300" y="42" width="428" height="56" rx="10" fill="#191536" stroke="#8f7df0" stroke-width="1.5" stroke-dasharray="8 6"/>
+    <text x="514" y="76" font-size="19" fill="#c7bdf7" text-anchor="middle">every participant in one coordinated protocol</text>
+    <text x="790" y="66" font-size="19" fill="#e9edf5">real <tspan fill="#8f7df0">inside</tspan> Kafka⇆Kafka topologies</text>
+    <text x="790" y="94" font-size="18" fill="#98a2b8">ends at the first Postgres, HTTP call, or e-mail</text>
+  </g>
+</svg></div><aside class="notes"><p>One minute per lane, top to bottom. Lane 2 is home — highlight that it's the only lane with a question attached rather than a verdict: "who absorbs the duplicate" is answered by the inbox half of the talk.</p><p>Lane 3 phrasing "a scope, not a setting" preempts the <code>processing.guarantee=exactly_once</code> objection.</p></aside></section>
+<section class="slide" id="s06" data-num="6"  data-sec="B" data-secname="Fundamentals" data-until="510"  data-title="Effectively-once"><div class="canvas"><div class="kicker">fundamentals</div>
+<h2 class="t">Exactly-once <i>delivery</i> is a myth</h2>
+<p class="sub">Effectively-once <i>processing</i> is engineering.</p>
+<div class="split" style="grid-template-columns:46fr 54fr;margin-top:6px">
+  <svg viewBox="0 0 520 300" style="width:100%">
+    <defs><marker id="m6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#98a2b8"/></marker></defs>
+    <rect x="14" y="90" width="150" height="74" rx="12" fill="#14243a" stroke="#4da3ff" stroke-width="2"/>
+    <text x="89" y="133" font-size="21" fill="#cfe4ff" text-anchor="middle">sender</text>
+    <rect x="356" y="90" width="150" height="74" rx="12" fill="#12291f" stroke="#3ecf8e" stroke-width="2"/>
+    <text x="431" y="133" font-size="21" fill="#c9f2dd" text-anchor="middle">receiver</text>
+    <line x1="170" y1="112" x2="348" y2="112" stroke="#98a2b8" stroke-width="2.5" marker-end="url(#m6)"/>
+    <text x="259" y="100" font-size="18" fill="#98a2b8" text-anchor="middle">message</text>
+    <text x="431" y="196" font-size="19" fill="#3ecf8e" text-anchor="middle">processed ✓</text>
+    <line x1="348" y1="146" x2="272" y2="146" stroke="#ff5d5d" stroke-width="2.5" stroke-dasharray="7 6"/>
+    <text x="252" y="153" font-size="26" fill="#ff5d5d" text-anchor="middle">✕</text>
+    <text x="300" y="178" font-size="18" fill="#ff8d8d" text-anchor="middle">ack lost</text>
+    <text x="89" y="196" font-size="19" fill="#f5c542" text-anchor="middle">resend… or not?</text>
+    <text x="260" y="262" font-size="19" fill="#98a2b8" text-anchor="middle">resend → duplicate&nbsp;&nbsp;·&nbsp;&nbsp;don't → possible loss</text>
+  </svg>
+  <ul class="list">
+    <li>After the ack is lost, <strong>both options are wrong</strong> — retransmit and you may duplicate, don't and you may lose. No protocol escapes this.</li>
+    <li>Kafka's <em>exactly-once semantics</em> are real — but scoped to read-process-write chains <strong>between Kafka topics</strong>. <span class="muted">Postgres + HTTP + Kafka is outside that boundary.</span></li>
+    <li>So pick the honest transport — <strong>at-least-once</strong> — and make duplicates <strong>harmless</strong> instead of impossible.</li>
+  </ul>
+</div>
+<div class="banner g" style="margin-top:26px;text-align:center;font-size:30px"><span class="kaf">at-least-once transport</span> &nbsp;+&nbsp; <span class="cons">idempotent processing</span> &nbsp;=&nbsp; <b>effectively-once outcome</b></div></div><aside class="notes"><p>This is the Two Generals problem wearing a Kafka t-shirt. Don't name-drop unless asked — the picture carries it.</p><p>Kafka EOS caveat matters for credibility: transactions + read_committed work great for Streams-style topologies. The moment a Postgres row or an HTTP 201 is part of the story, you're out of scope.</p><p>The green equation is the thesis — the rest of the talk is just implementing each side of the <code>+</code>.</p></aside></section>
+<section class="slide" id="s07" data-num="7"  data-sec="C" data-secname="The pattern"  data-until="750"  data-title="The outbox in one picture"><div class="canvas"><div class="kicker">the pattern</div>
+<h2 class="t">The transactional outbox, in one picture</h2>
+<svg viewBox="0 0 1160 400" style="width:100%;margin-top:12px">
+  <defs><marker id="m7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#98a2b8"/></marker></defs>
+  <circle cx="52" cy="185" r="17" fill="#1d2432" stroke="#98a2b8" stroke-width="1.5"/><text x="52" y="228" font-size="17" fill="#98a2b8" text-anchor="middle">client</text>
+  <line x1="74" y1="185" x2="138" y2="185" stroke="#98a2b8" stroke-width="2.2" marker-end="url(#m7)"/>
+  <!-- service -->
+  <rect x="148" y="40" width="470" height="320" rx="16" fill="#12161f" stroke="#4da3ff" stroke-width="2"/>
+  <text x="176" y="80" font-size="22" font-weight="700" fill="#cfe4ff">order-service</text>
+  <!-- one-tx bracket -->
+  <rect x="176" y="104" width="260" height="212" rx="12" fill="none" stroke="#f5c542" stroke-width="2.5" stroke-dasharray="9 7"/>
+  <text x="306" y="96" font-size="17" fill="#f5c542" text-anchor="middle">ONE local transaction</text>
+  <rect x="200" y="124" width="212" height="74" rx="9" fill="#161b26" stroke="#2a3245"/>
+  <text x="216" y="153" font-size="18" fill="#e9edf5" font-weight="600">orders</text>
+  <text x="216" y="181" font-size="16" fill="#98a2b8" font-family="Consolas,monospace">ORD-4F2A · CUST-7 · NEW</text>
+  <rect x="200" y="222" width="212" height="74" rx="9" fill="#161b26" stroke="#2a3245"/>
+  <text x="216" y="251" font-size="18" fill="#e9edf5" font-weight="600">outbox_record</text>
+  <text x="216" y="279" font-size="16" fill="#98a2b8" font-family="Consolas,monospace">payload · key · <tspan fill="#f5c542">NEW</tspan></text>
+  <!-- relay -->
+  <circle cx="530" cy="259" r="34" fill="#14243a" stroke="#4da3ff" stroke-width="2"/>
+  <text x="530" y="253" font-size="16" fill="#cfe4ff" text-anchor="middle">relay</text>
+  <text x="530" y="273" font-size="14" fill="#7f9bc4" text-anchor="middle">polls</text>
+  <line x1="412" y1="259" x2="492" y2="259" stroke="#98a2b8" stroke-width="2" marker-end="url(#m7)" stroke-dasharray="5 5"/>
+  <!-- kafka -->
+  <line x1="566" y1="259" x2="712" y2="259" stroke="#f5a623" stroke-width="2.4" marker-end="url(#m7)"/>
+  <text x="640" y="243" font-size="16" fill="#f5a623" text-anchor="middle">send().get()</text>
+  <rect x="722" y="150" width="216" height="218" rx="16" fill="#171310" stroke="#f5a623" stroke-width="2"/>
+  <text x="830" y="184" font-size="21" font-weight="700" fill="#ffd9a0" text-anchor="middle">Kafka</text>
+  <rect x="748" y="204" width="50" height="50" rx="9" fill="#241d0d" stroke="#f5a623"/><text x="773" y="235" font-size="16" fill="#f5c542" text-anchor="middle">b1</text>
+  <rect x="806" y="204" width="50" height="50" rx="9" fill="#241d0d" stroke="#f5a623"/><text x="831" y="235" font-size="16" fill="#f5c542" text-anchor="middle">b2</text>
+  <rect x="864" y="204" width="50" height="50" rx="9" fill="#241d0d" stroke="#f5a623"/><text x="889" y="235" font-size="16" fill="#f5c542" text-anchor="middle">b3</text>
+  <text x="830" y="292" font-size="16" fill="#98a2b8" text-anchor="middle">acks=all · min.isr=2</text>
+  <text x="830" y="318" font-size="16" fill="#98a2b8" text-anchor="middle">RF 3 · 3 partitions</text>
+  <line x1="948" y1="259" x2="1070" y2="259" stroke="#98a2b8" stroke-width="2.2" marker-end="url(#m7)" opacity=".7"/>
+  <text x="1012" y="243" font-size="16" fill="#98a2b8" text-anchor="middle">consumers</text>
+  <text x="1012" y="285" font-size="15" fill="#5b657a" text-anchor="middle">at-least-once</text>
+</svg>
+<div style="display:flex;gap:18px;margin-top:16px">
+  <div class="card" style="flex:1;padding:14px 20px"><p style="font-size:21px"><b class="warnc">①</b> the event is <b>data</b> first — atomic with the business row</p></div>
+  <div class="card" style="flex:1;padding:14px 20px"><p style="font-size:21px"><b class="prod">②</b> the relay retries until the broker acks — <i>after</i> the 201</p></div>
+  <div class="card" style="flex:1;padding:14px 20px"><p style="font-size:21px"><b class="kaf">③</b> beyond the ack: honest <b>at-least-once</b>, by design</p></div>
+</div></div><aside class="notes"><p>The contract sentence, verbatim: <strong>"the database is the only thing that must be up for the business to accept work."</strong> Kafka becomes an availability concern of the <em>relay</em>, not of the request path.</p><p>Chip ③ plants the flag for the inbox half: the outbox deliberately produces duplicates in rare cases; absorbing them is the consumer's job.</p></aside></section>
+<section class="slide" id="s08" data-num="8"  data-sec="C" data-secname="The pattern"  data-until="750"  data-steps="9" data-title="Happy path, end to end"><div class="canvas"><div class="kicker">the pattern</div>
+<h2 class="t" style="font-size:44px">Happy path, end to end</h2>
+<svg viewBox="0 0 1160 430" style="width:100%;margin-top:8px">
+  <defs>
+    <marker id="m8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#98a2b8"/></marker>
+    <g id="env8"><rect width="42" height="29" rx="6" fill="#241d0d" stroke="#f5a623" stroke-width="1.5"/><path d="M3 5 L21 17 L39 5" fill="none" stroke="#f5a623" stroke-width="1.5"/></g>
+  </defs>
+  <circle cx="40" cy="200" r="15" fill="#1d2432" stroke="#98a2b8" stroke-width="1.5"/><text x="40" y="240" font-size="15" fill="#98a2b8" text-anchor="middle">client</text>
+  <!-- order-service -->
+  <rect x="96" y="62" width="330" height="330" rx="14" fill="#12161f" stroke="#4da3ff" stroke-width="2"/>
+  <text x="261" y="96" font-size="20" font-weight="700" fill="#cfe4ff" text-anchor="middle">order-service <tspan font-size="14" fill="#7f9bc4">+ orderdb</tspan></text>
+  <rect x="122" y="118" width="200" height="70" rx="8" fill="#161b26" stroke="#2a3245"/>
+  <text x="134" y="142" font-size="15" fill="#98a2b8">orders</text>
+  <g data-show="2" class="pop"><text x="134" y="170" font-size="14" fill="#8ee6a8" font-family="Consolas,monospace">ORD-91 · CUST-7</text></g>
+  <rect x="122" y="210" width="200" height="92" rx="8" fill="#161b26" stroke="#2a3245"/>
+  <text x="134" y="234" font-size="15" fill="#98a2b8">outbox_record</text>
+  <g data-show="2" class="pop"><text x="134" y="262" font-size="14" fill="#d6deeb" font-family="Consolas,monospace">evt 4f9c… key order-91</text></g>
+  <g data-show="2" data-hide="6" class="pop"><rect x="134" y="272" width="56" height="22" rx="6" fill="#241d0d" stroke="#f5c542"/><text x="162" y="288" font-size="13" fill="#f5c542" text-anchor="middle">NEW</text></g>
+  <g data-show="6" data-now="6" class="pop flash-g"><rect x="134" y="272" width="104" height="22" rx="6" fill="#12291f" stroke="#3ecf8e"/><text x="186" y="288" font-size="13" fill="#8ee6a8" text-anchor="middle">COMPLETED</text></g>
+  <!-- tx bracket 1 -->
+  <g data-show="2" data-hide="4" data-now="3" class="flash-g">
+    <rect x="110" y="106" width="224" height="208" rx="12" fill="none" stroke="#f5c542" stroke-width="2.5" stroke-dasharray="9 7"/>
+    <text x="222" y="336" font-size="14" fill="#f5c542" text-anchor="middle">ONE transaction</text>
+  </g>
+  <!-- second commit bracket -->
+  <g data-show="6" data-hide="7"><rect x="112" y="204" width="220" height="104" rx="10" fill="none" stroke="#3ecf8e" stroke-width="2" stroke-dasharray="6 6"/><text x="222" y="326" font-size="14" fill="#3ecf8e" text-anchor="middle">second, separate commit</text></g>
+  <!-- relay -->
+  <circle cx="426" cy="256" r="30" fill="#14243a" stroke="#4da3ff" stroke-width="2"/>
+  <text x="426" y="252" font-size="14" fill="#cfe4ff" text-anchor="middle">relay</text><text x="426" y="269" font-size="12" fill="#7f9bc4" text-anchor="middle">poller</text>
+  <circle cx="426" cy="256" r="30" fill="none" stroke="#4da3ff" stroke-width="2" class="pulsering" data-now="4,5"/>
+  <g data-show="4" class="pop"><line x1="330" y1="256" x2="392" y2="256" stroke="#4da3ff" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#m8)"/><text x="368" y="240" font-size="12" fill="#7f9bc4" text-anchor="middle">claims NEW</text></g>
+  <!-- kafka -->
+  <rect x="556" y="120" width="230" height="220" rx="14" fill="#171310" stroke="#f5a623" stroke-width="2"/>
+  <text x="671" y="152" font-size="20" font-weight="700" fill="#ffd9a0" text-anchor="middle">Kafka</text>
+  <rect x="578" y="172" width="186" height="34" rx="7" fill="#1d1712" stroke="#4a3d1e"/><text x="596" y="195" font-size="14" fill="#8a713a" font-family="Consolas,monospace">p0</text>
+  <rect x="578" y="216" width="186" height="34" rx="7" fill="#1d1712" stroke="#4a3d1e"/><text x="596" y="239" font-size="14" fill="#8a713a" font-family="Consolas,monospace">p1</text>
+  <rect x="578" y="260" width="186" height="34" rx="7" fill="#1d1712" stroke="#4a3d1e"/><text x="596" y="283" font-size="14" fill="#8a713a" font-family="Consolas,monospace">p2</text>
+  <text x="671" y="322" font-size="14" fill="#8a713a" text-anchor="middle" font-family="Consolas,monospace">orders.v1 · key ORD-91</text>
+  <g data-show="1" class="fly-r"><line x1="62" y1="200" x2="88" y2="200" stroke="#98a2b8" stroke-width="2.4" marker-end="url(#m8)"/><text x="74" y="184" font-size="14" fill="#98a2b8" text-anchor="middle">POST</text></g>
+  <g data-show="3" class="fly-l"><text x="66" y="160" font-size="17" fill="#3ecf8e" font-weight="700" text-anchor="middle">201 ✓</text></g>
+  <g data-show="5" data-hide="6" class="fly-R"><use href="#env8" x="480" y="205"/></g>
+  <g data-show="5" class="pop"><use href="#env8" x="640" y="219" transform="scale(.86)" transform-origin="640 219"/></g>
+  <g data-show="5"><line x1="462" y1="232" x2="548" y2="210" stroke="#f5a623" stroke-width="2.2" marker-end="url(#m8)"/><path d="M548 296 C 510 316 480 310 458 288" fill="none" stroke="#3ecf8e" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#m8)"/><text x="505" y="334" font-size="13" fill="#69b891" text-anchor="middle">ack · acks=all, min.isr=2</text></g>
+  <!-- shipping -->
+  <rect x="856" y="62" width="286" height="330" rx="14" fill="#101a14" stroke="#3ecf8e" stroke-width="2"/>
+  <text x="999" y="96" font-size="20" font-weight="700" fill="#c9f2dd" text-anchor="middle">shipping-service <tspan font-size="14" fill="#69b891">+ shippingdb</tspan></text>
+  <rect x="880" y="118" width="238" height="70" rx="8" fill="#161b26" stroke="#2a3245"/>
+  <text x="892" y="142" font-size="15" fill="#98a2b8">inbox_message</text>
+  <g data-show="8" class="pop"><text x="892" y="170" font-size="14" fill="#8ee6a8" font-family="Consolas,monospace">4f9c… · shipping-service</text></g>
+  <rect x="880" y="210" width="238" height="70" rx="8" fill="#161b26" stroke="#2a3245"/>
+  <text x="892" y="234" font-size="15" fill="#98a2b8">shipments</text>
+  <g data-show="8" class="pop"><text x="892" y="262" font-size="14" fill="#8ee6a8" font-family="Consolas,monospace">SHP-17 → ORD-91</text></g>
+  <g data-show="8" data-now="8" class="flash-g"><rect x="868" y="106" width="262" height="186" rx="12" fill="none" stroke="#f5c542" stroke-width="2.5" stroke-dasharray="9 7"/><text x="999" y="312" font-size="14" fill="#f5c542" text-anchor="middle">ONE transaction — claim authorises the work</text></g>
+  <g data-show="7" data-hide="8" class="fly-R"><use href="#env8" x="800" y="180"/></g>
+  <g data-show="7"><line x1="790" y1="200" x2="848" y2="200" stroke="#f5a623" stroke-width="2.4" marker-end="url(#m8)"/></g>
+  <g data-show="9"><path d="M 856 356 C 800 386 740 380 700 348" fill="none" stroke="#69b891" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#m8)"/><text x="790" y="396" font-size="14" fill="#69b891" text-anchor="middle">commit offset — last</text></g>
+</svg>
+<p class="swapcap" data-show="0" data-hide="1"><span class="muted">The whole pipeline in nine beats. Step with → — no autoplay, no magic.</span></p>
+<p class="swapcap" data-show="1" data-hide="2"><b>1.</b> <code class="i">POST /orders</code> arrives.</p>
+<p class="swapcap" data-show="2" data-hide="3"><b>2.</b> One transaction, two INSERTs — the order <i>and</i> its event. Atomic by construction.</p>
+<p class="swapcap" data-show="3" data-hide="4"><b>3.</b> Commit → <b>201</b>. Note what has <i>not</i> happened: Kafka.</p>
+<p class="swapcap" data-show="4" data-hide="5"><b>4.</b> The relay wakes — adaptive 0.5–5 s — and claims <code class="i">NEW</code> records, in key order.</p>
+<p class="swapcap" data-show="5" data-hide="6"><b>5.</b> <code class="i">send().get()</code> — blocks until two of three brokers own the bytes.</p>
+<p class="swapcap" data-show="6" data-hide="7"><b>6.</b> Only then: <code class="i">NEW → COMPLETED</code>, in a <b>second, separate commit</b>. <span class="warnc">Remember this seam.</span></p>
+<p class="swapcap" data-show="7" data-hide="8"><b>7.</b> Kafka delivers to shipping-service.</p>
+<p class="swapcap" data-show="8" data-hide="9"><b>8.</b> Consumer transaction: <span class="cons">claim + shipment</span>, one commit.</p>
+<p class="swapcap" data-show="9"><b>9.</b> Offset commits last. So: a 201 means <b>durably recorded &amp; guaranteed to publish</b> — not <i>"already on the topic"</i>.</p></div><aside class="notes"><p>The centerpiece — 2½ min. Two beats deserve emphasis:</p><ul><li><strong>Beat 3:</strong> the request path ends before Kafka begins. That asymmetry is the whole pattern.</li><li><strong>Beat 6:</strong> the separate COMPLETED commit — plant "remember this seam"; slide 17 harvests it (crash between 5 and 6 = duplicate).</li></ul><p>Beat 9's sentence is lifted from the OrderController javadoc — it returns on the library-realities slide.</p></aside></section>
+<section class="slide" id="s09" data-num="9"  data-sec="D" data-secname="The POC"      data-until="930"  data-title="The POC"><div class="canvas"><div class="kicker">the poc</div>
+<h2 class="t">Two services, one broker cluster, zero shared state</h2>
+<svg viewBox="0 0 1160 470" style="width:100%;margin-top:12px">
+  <defs><marker id="m9" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#98a2b8"/></marker></defs>
+  <!-- order-service -->
+  <rect x="20" y="70" width="270" height="120" rx="14" fill="#12161f" stroke="#4da3ff" stroke-width="2"/>
+  <text x="155" y="112" font-size="22" font-weight="700" fill="#cfe4ff" text-anchor="middle">order-service</text>
+  <text x="155" y="142" font-size="17" fill="#7f9bc4" text-anchor="middle">outbox producer · :8090</text>
+  <text x="155" y="168" font-size="15" fill="#5b657a" text-anchor="middle" font-family="Consolas,monospace">orders · outbox_record</text>
+  <ellipse cx="155" cy="262" rx="62" ry="14" fill="#14243a" stroke="#4da3ff"/>
+  <rect x="93" y="262" width="124" height="44" fill="#14243a" stroke="#4da3ff"/>
+  <line x1="93" y1="262" x2="93" y2="306" stroke="#4da3ff"/><line x1="217" y1="262" x2="217" y2="306" stroke="#4da3ff"/>
+  <ellipse cx="155" cy="306" rx="62" ry="14" fill="#14243a" stroke="#4da3ff"/>
+  <text x="155" y="292" font-size="17" fill="#cfe4ff" text-anchor="middle">orderdb</text>
+  <line x1="155" y1="190" x2="155" y2="246" stroke="#4da3ff" stroke-width="2"/>
+  <!-- kafka cluster -->
+  <rect x="420" y="46" width="320" height="290" rx="16" fill="#171310" stroke="#f5a623" stroke-width="2"/>
+  <text x="580" y="82" font-size="22" font-weight="700" fill="#ffd9a0" text-anchor="middle">Confluent Kafka 8.2 · KRaft</text>
+  <rect x="448" y="102" width="80" height="58" rx="10" fill="#241d0d" stroke="#f5a623"/><text x="488" y="130" font-size="16" fill="#f5c542" text-anchor="middle">kafka-1</text><text x="488" y="150" font-size="13" fill="#8a713a" text-anchor="middle">:19092</text>
+  <rect x="540" y="102" width="80" height="58" rx="10" fill="#241d0d" stroke="#f5a623"/><text x="580" y="130" font-size="16" fill="#f5c542" text-anchor="middle">kafka-2</text><text x="580" y="150" font-size="13" fill="#8a713a" text-anchor="middle">:29092</text>
+  <rect x="632" y="102" width="80" height="58" rx="10" fill="#241d0d" stroke="#f5a623"/><text x="672" y="130" font-size="16" fill="#f5c542" text-anchor="middle">kafka-3</text><text x="672" y="150" font-size="13" fill="#8a713a" text-anchor="middle">:39092</text>
+  <text x="580" y="196" font-size="16" fill="#98a2b8" text-anchor="middle" font-family="Consolas,monospace">orders.v1 ×3</text>
+  <text x="580" y="224" font-size="16" fill="#98a2b8" text-anchor="middle" font-family="Consolas,monospace">orders.v1.cancelled ×3</text>
+  <text x="580" y="252" font-size="16" fill="#98a2b8" text-anchor="middle" font-family="Consolas,monospace">orders.v1.DLT ×3</text>
+  <text x="580" y="280" font-size="16" fill="#5b657a" text-anchor="middle" font-family="Consolas,monospace">domain-events ×3 (fallback)</text>
+  <text x="580" y="316" font-size="15" fill="#8a713a" text-anchor="middle">RF 3 · min.isr 2 · auto-create off</text>
+  <!-- shipping-service -->
+  <rect x="870" y="70" width="270" height="120" rx="14" fill="#101a14" stroke="#3ecf8e" stroke-width="2"/>
+  <text x="1005" y="112" font-size="22" font-weight="700" fill="#c9f2dd" text-anchor="middle">shipping-service</text>
+  <text x="1005" y="142" font-size="17" fill="#69b891" text-anchor="middle">inbox consumer · :8091</text>
+  <text x="1005" y="168" font-size="15" fill="#5b657a" text-anchor="middle" font-family="Consolas,monospace">inbox_message · shipments</text>
+  <ellipse cx="1005" cy="262" rx="62" ry="14" fill="#0f2019" stroke="#3ecf8e"/>
+  <rect x="943" y="262" width="124" height="44" fill="#0f2019" stroke="#3ecf8e"/>
+  <line x1="943" y1="262" x2="943" y2="306" stroke="#3ecf8e"/><line x1="1067" y1="262" x2="1067" y2="306" stroke="#3ecf8e"/>
+  <ellipse cx="1005" cy="306" rx="62" ry="14" fill="#0f2019" stroke="#3ecf8e"/>
+  <text x="1005" y="292" font-size="17" fill="#c9f2dd" text-anchor="middle">shippingdb</text>
+  <line x1="1005" y1="190" x2="1005" y2="246" stroke="#3ecf8e" stroke-width="2"/>
+  <!-- flows -->
+  <line x1="290" y1="118" x2="412" y2="118" stroke="#f5a623" stroke-width="2.4" marker-end="url(#m9)"/>
+  <text x="351" y="104" font-size="15" fill="#f5a623" text-anchor="middle">publish</text>
+  <line x1="740" y1="118" x2="862" y2="118" stroke="#f5a623" stroke-width="2.4" marker-end="url(#m9)"/>
+  <text x="801" y="104" font-size="15" fill="#f5a623" text-anchor="middle">consume</text>
+  <path d="M 870 168 C 800 200 760 200 744 176" fill="none" stroke="#ff5d5d" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#m9)"/>
+  <text x="808" y="212" font-size="14" fill="#ff8d8d" text-anchor="middle">dead letters</text>
+  <!-- observability strip -->
+  <rect x="20" y="384" width="1120" height="66" rx="12" fill="#12151d" stroke="#222a3a"/>
+  <text x="46" y="424" font-size="16" fill="#5b657a">observability</text>
+  <text x="235" y="424" font-size="16" fill="#98a2b8">Prometheus :9090</text>
+  <text x="445" y="424" font-size="16" fill="#98a2b8">Grafana :3000</text>
+  <text x="625" y="424" font-size="16" fill="#98a2b8">kafka-exporter :9308</text>
+  <text x="855" y="424" font-size="16" fill="#98a2b8">Conduktor :8080</text>
+  <text x="1045" y="424" font-size="16" fill="#98a2b8">SR :8081</text>
+</svg></div><aside class="notes"><p>Point out the deliberate separation: two databases inside one Postgres container — no shared tables, so messaging is the only channel. That separation is why these patterns are needed at all.</p><p>14 containers max (8 core + 3 metrics + 3 Conduktor). The DLT arrow is drawn from shipping BACK to Kafka — the consumer publishes dead letters, a detail people miss.</p></aside></section>
+<section class="slide" id="s10" data-num="10" data-sec="D" data-secname="The POC"      data-until="930"  data-title="Stack &amp; cluster floor"><div class="canvas"><div class="kicker">the poc</div>
+<h2 class="t">Stack &amp; cluster floor</h2>
+<div class="split" style="grid-template-columns:53fr 47fr;margin-top:20px">
+  <table class="tbl">
+    <tr><th>component</th><th>version · note</th></tr>
+    <tr><td><b>Java</b></td><td>25 — records, sealed, virtual threads</td></tr>
+    <tr><td><b>Spring Boot</b></td><td>4.1.1 — namastack's exact baseline</td></tr>
+    <tr><td><b>namastack-outbox</b></td><td>1.9.0 — BOM + five modules</td></tr>
+    <tr><td>Jackson</td><td><b>3</b>.1.5 — <code class="i">tools.jackson.*</code></td></tr>
+    <tr><td>Confluent Platform</td><td>8.2.2 — KRaft, no ZooKeeper</td></tr>
+    <tr><td>PostgreSQL</td><td>17.10 — one instance, <b>two</b> databases</td></tr>
+    <tr><td>Testcontainers</td><td>2.0.5 — real Postgres &amp; Kafka</td></tr>
+  </table>
+  <div class="card cluster">
+    <h3 style="font-size:24px;margin-bottom:10px;color:var(--kafka)">the cluster floor</h3>
+    <ul class="list tight" style="--acc:var(--kafka)">
+      <li><strong>3 brokers, KRaft</strong> — quorum needs 2 of 3, so all three always run</li>
+      <li><strong>4 topics × 3 partitions</strong> — orders.v1, .cancelled, .DLT, domain-events</li>
+      <li><strong>RF 3 · min.insync.replicas 2</strong> — acked ⇒ durably replicated</li>
+      <li><strong>auto-create OFF</strong> — a topic typo fails loudly</li>
+      <li><code class="i">domain-events</code> — routing fallback, unconsumed</li>
+    </ul>
+  </div>
+</div></div><aside class="notes"><p>30 seconds on the left column, the right one is the part that matters for the guarantees.</p><ul><li>Boot pinned to 4.1.1 because that's what namastack 1.9.0's own BOM builds against — split-BOM misery otherwise.</li><li>min.isr=2 + acks=all is the durability floor the outbox relay leans on later (slide 14).</li><li>domain-events comes back on the routing slide: unrouted payloads get published, not stranded.</li></ul></aside></section>
+<section class="slide" id="s11" data-num="11" data-sec="E" data-secname="Producer"     data-until="1290" data-steps="4" data-title="One transaction, two writes"><div class="canvas"><div class="kicker">producer</div>
+<h2 class="t">One transaction, two writes</h2>
+<figure class="code" style="margin-top:10px">
+  <figcaption><span class="dotc" style="background:var(--producer)"></span>order-service · OrderService.java · 50–66 — verbatim, minus logging</figcaption>
+  <pre class="sm"><span class="ln l-a" data-n="50"><span class="tk-ann">@Transactional</span></span>
+<span class="ln" data-n="51"><span class="tk-kw">public</span> <span class="tk-type">OrderEntity</span> <span class="tk-mth">createOrder</span>(<span class="tk-type">String</span> customerId, <span class="tk-type">BigDecimal</span> totalAmount) {</span>
+<span class="ln" data-n="52">    <span class="tk-type">String</span> orderId = <span class="tk-str">"ORD-"</span> + <span class="tk-type">UUID</span>.<span class="tk-mth">randomUUID</span>()…;</span>
+<span class="ln" data-n="53">    <span class="tk-type">OrderCreated</span> event = <span class="tk-type">OrderCreated</span>.<span class="tk-mth">of</span>(orderId, customerId, totalAmount);</span>
+<span class="ln l-b" data-n="55">    <span class="tk-type">OrderEntity</span> order = orderRepository.<span class="tk-mth">save</span>(</span>
+<span class="ln l-b" data-n="57">            <span class="tk-kw">new</span> <span class="tk-type">OrderEntity</span>(orderId, customerId, totalAmount, <span class="tk-fld">event.eventId()</span>));</span>
+<span class="ln l-c" data-n="59">    outbox.<span class="tk-mth">schedule</span>(</span>
+<span class="ln l-c" data-n="60">            event,</span>
+<span class="ln l-c" data-n="61">            <span class="tk-mth">orderKey</span>(orderId),</span>
+<span class="ln l-c" data-n="62">            <span class="tk-type">Map</span>.<span class="tk-mth">of</span>(<span class="tk-str">"customerId"</span>, customerId, <span class="tk-str">"orderTotal"</span>, totalAmount…));</span>
+<span class="ln" data-n="66">}</span>
+<span class="ln" data-n="135"><span class="tk-kw">static</span> <span class="tk-type">String</span> <span class="tk-mth">orderKey</span>(<span class="tk-type">String</span> orderId) { <span class="tk-kw">return</span> <span class="tk-str">"order-"</span> + orderId; }</span></pre>
+</figure>
+<p class="swapcap" data-show="0" data-hide="1"><span class="muted">Same method as slide 2 — with the lie removed. Step through →</span></p>
+<p class="swapcap" data-show="1" data-hide="2"><b>One transaction opens.</b> Everything below is atomic — both writes land, or neither exists.</p>
+<p class="swapcap" data-show="2" data-hide="3">Write № 1 — the business row. Note <code class="i">event.eventId()</code> <b>stored on the order</b>: that little column pays off in the duplicate demo.</p>
+<p class="swapcap" data-show="3" data-hide="4">Write № 2 — <code class="i">outbox.schedule(…)</code> is just an <b>INSERT into outbox_record</b>, same transaction. Ordering key: <code class="i">"order-" + orderId</code>.</p>
+<p class="swapcap" data-show="4"><b>No KafkaTemplate. No producer. No broker in sight.</b> Kafka can be down — this method neither knows nor cares.</p></div><aside class="notes"><p>The mirror of slide 2 — same shape, but write 2 goes to the same database.</p><ul><li>Step 2: created_event_id column exists purely so the demo can replay a byte-identical event later.</li><li>Step 3: schedule() = INSERT into outbox_record with status NEW. Nothing async happened yet.</li><li>Step 4 is the applause line: the request path has zero Kafka dependency.</li></ul></aside></section>
+<section class="slide" id="s12" data-num="12" data-sec="E" data-secname="Producer"     data-until="1290" data-title="Two producer APIs"><div class="canvas"><div class="kicker">producer</div>
+<h2 class="t">Two producer APIs, one guarantee</h2>
+<div class="cols" style="margin-top:16px;gap:24px">
+  <div>
+    <div style="font-size:19px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--producer);margin-bottom:8px">explicit — you see the outbox</div>
+    <figure class="code">
+      <figcaption><span class="dotc" style="background:var(--producer)"></span>OrderService.createOrder</figcaption>
+      <pre class="sm"><span class="ln">outbox.<span class="tk-mth">schedule</span>(</span>
+<span class="ln">    event,</span>
+<span class="ln">    <span class="tk-mth">orderKey</span>(orderId),   <span class="tk-cm">// Java:</span></span>
+<span class="ln">    <span class="tk-cm">//   "order-" + orderId</span></span>
+<span class="ln">    <span class="tk-type">Map</span>.<span class="tk-mth">of</span>(…context…));</span></pre>
+    </figure>
+    <p style="font-size:21px;color:var(--muted);margin-top:12px;line-height:1.4">Messaging is visible in the service. Grep-able, obvious, verbose.</p>
+  </div>
+  <div>
+    <div style="font-size:19px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--violet);margin-bottom:8px">declarative — domain stays clean</div>
+    <figure class="code">
+      <figcaption><span class="dotc" style="background:var(--violet)"></span>OrderService.cancelOrder&nbsp;+&nbsp;OrderCancelled.java</figcaption>
+      <pre class="sm"><span class="ln">eventPublisher.<span class="tk-mth">publishEvent</span>(</span>
+<span class="ln">    <span class="tk-type">OrderCancelled</span>.<span class="tk-mth">of</span>(orderId, reason));</span>
+<span class="ln"> </span>
+<span class="ln"><span class="tk-cm">// …in another module:</span></span>
+<span class="ln"><span class="tk-ann">@OutboxEvent</span>(</span>
+<span class="ln">    key = <span class="tk-str">"'order-' + #this.orderId"</span>)</span>
+<span class="ln"><span class="tk-kw">public record</span> <span class="tk-type">OrderCancelled</span>(…)</span></pre>
+    </figure>
+    <p style="font-size:21px;color:var(--muted);margin-top:12px;line-height:1.4">namastack's multicaster intercepts the Spring event and persists it <b>inside the caller's transaction</b>.</p>
+  </div>
+</div>
+<div class="foot"><b>Same ordering key, two languages:</b> a Java concatenation on the left, a SpEL string on the right — in a <i>different module</i>. Nothing but a test connects them <span class="muted">(that test appears on slide 26)</span>.</div></div><aside class="notes"><p>Trade-off framing: explicit = visible dependency; declarative = clean domain, implicit persistence. The POC uses both on purpose — create is explicit, cancel is declarative.</p><p>The footer is the setup for the drift confession (slide 24) and the pinning test (slide 26). A bare <code>#this.orderId</code> would put cancellations in a different ordering group — a cancellation could overtake its own creation.</p></aside></section>
+<section class="slide" id="s13" data-num="13" data-sec="E" data-secname="Producer"     data-until="1290" data-title="Routing"><div class="canvas"><div class="kicker">producer</div>
+<h2 class="t">Routing — payload type → topic, key, headers</h2>
+<div class="split" style="grid-template-columns:60fr 40fr;margin-top:16px">
+  <figure class="code">
+    <figcaption><span class="dotc" style="background:var(--producer)"></span>KafkaOutboxRoutingConfig.java · condensed</figcaption>
+    <pre class="sm"><span class="ln"><span class="tk-type">KafkaOutboxRouting</span>.<span class="tk-mth">builder</span>()</span>
+<span class="ln">  .<span class="tk-mth">route</span>(<span class="tk-type">OutboxPayloadSelector</span>.<span class="tk-mth">type</span>(<span class="tk-type">OrderCreated</span>.<span class="tk-kw">class</span>),</span>
+<span class="ln">      route -&gt; {</span>
+<span class="ln">        route.<span class="tk-mth">target</span>(<span class="tk-str">"orders.v1"</span>);</span>
+<span class="ln">        route.<span class="tk-mth">key</span>((payload, meta) -&gt; payload.<span class="tk-mth">orderId</span>());</span>
+<span class="ln">        route.<span class="tk-mth">headers</span>((payload, meta) -&gt; <span class="tk-mth">headers</span>(</span>
+<span class="ln">            <span class="tk-str">"OrderCreated"</span>, payload.<span class="tk-mth">eventId</span>(),</span>
+<span class="ln">            meta.<span class="tk-mth">getContext</span>()));</span>
+<span class="ln">      })</span>
+<span class="ln">  .<span class="tk-mth">route</span>(<span class="tk-type">OutboxPayloadSelector</span>.<span class="tk-mth">type</span>(<span class="tk-type">OrderCancelled</span>.<span class="tk-kw">class</span>),</span>
+<span class="ln">      route -&gt; {   <span class="tk-cm">// same key shape</span></span>
+<span class="ln">        route.<span class="tk-mth">target</span>(<span class="tk-str">"orders.v1.cancelled"</span>);</span>
+<span class="ln">      })</span>
+<span class="ln">  .<span class="tk-mth">defaults</span>(route -&gt; {   <span class="tk-cm">// unrouted ≠ stranded</span></span>
+<span class="ln">        route.<span class="tk-mth">target</span>(<span class="tk-str">"domain-events"</span>);</span>
+<span class="ln">      })</span>
+<span class="ln">  .<span class="tk-mth">build</span>();</span></pre>
+  </figure>
+  <ul class="list" style="font-size:23px">
+    <li>On the wire: key = <code class="i">orderId</code>; headers carry <code class="i">eventType</code>, <code class="i">eventId</code>, <code class="i">traceId</code>, <code class="i">spanId</code> — duplicates are spottable in Conduktor without deserializing.</li>
+    <li><code class="i">traceId</code> is captured <b>at schedule time</b> by an <code class="i">OutboxContextProvider</code> — the relay thread has no request context.</li>
+    <li>Declaring this bean <b>replaces</b> the default route-everything-to-one-topic behaviour.</li>
+  </ul>
+</div></div><aside class="notes"><p>Casts trimmed for the slide (real code casts payload). If asked about Kotlin interop: builder route/defaults expose both Function1 and Consumer overloads — an expression lambda is ambiguous from Java, a block-bodied lambda resolves to Consumer. The braces are load-bearing.</p><p>Tracing point is a nice observability beat: schedule-time capture is the only way the eventual Kafka record correlates with the HTTP request that caused it.</p></aside></section>
+<section class="slide" id="s14" data-num="14" data-sec="E" data-secname="Producer"     data-until="1290" data-title="The relay"><div class="canvas"><div class="kicker">producer</div>
+<h2 class="t">The relay — how the event actually leaves</h2>
+<div class="split" style="grid-template-columns:50fr 50fr;margin-top:18px">
+  <figure class="code">
+    <figcaption><span class="dotc"></span>order-service · application.yml <span style="margin-left:auto;color:var(--faint)">defaults vs. overrides → appendix</span></figcaption>
+    <pre class="sm"><span class="ln"><span class="tk-mth">namastack.outbox</span>:</span>
+<span class="ln">  <span class="tk-mth">polling</span>:</span>
+<span class="ln">    <span class="tk-mth">trigger</span>: <span class="tk-str">adaptive</span>     <span class="tk-cm"># 500ms ↔ 5s · batch 20</span></span>
+<span class="ln">  <span class="tk-mth">processing</span>:</span>
+<span class="ln">    <span class="tk-mth">stop-on-first-failure</span>: <span class="tk-kw">true</span></span>
+<span class="ln">    <span class="tk-mth">delete-completed-records</span>: <span class="tk-kw">false</span></span>
+<span class="ln">  <span class="tk-mth">retry</span>:</span>
+<span class="ln">    <span class="tk-mth">policy</span>: <span class="tk-str">exponential</span>  <span class="tk-cm"># 2s → 30s ×2 · 10 tries</span></span>
+<span class="ln"><span class="tk-mth">spring.kafka.producer</span>:</span>
+<span class="ln">  <span class="tk-mth">acks</span>: <span class="tk-str">all</span>              <span class="tk-cm"># + broker min.insync=2</span></span>
+<span class="ln">  <span class="tk-mth">properties</span>:</span>
+<span class="ln">    <span class="tk-mth">enable.idempotence</span>: <span class="tk-kw">true</span></span>
+<span class="ln">    <span class="tk-mth">max.block.ms</span>: <span class="tk-num">8000</span></span></pre>
+  </figure>
+  <ul class="list" style="font-size:24px">
+    <li><strong>Ordering lives here.</strong> <code class="i">stop-on-first-failure</code> halts a failing key's queue — a later event for the same order can never overtake it.</li>
+    <li><strong>The send blocks on the ack.</strong> <code class="i">send().get()</code> on virtual threads — a returned send means replicated to ≥ 2 brokers.</li>
+    <li><strong>Fail fast when Kafka is gone.</strong> <code class="i">max.block.ms=8000</code> hands the record back to the poller instead of parking a relay thread for two minutes.</li>
+    <li><strong>Give up loudly.</strong> After 10 exponential retries the row goes <code class="i">FAILED</code> — its own line on the dashboard.</li>
+  </ul>
+</div></div><aside class="notes"><p>This slide earns the Kafka-down demo: fail-fast + exponential retry is why that demo is snappy instead of a two-minute hang.</p><p>delete-completed-records=false is a demo choice — rows stay visible in psql. Production wants true or a purge job (slide 28).</p><p>Adaptive polling: tightens to 500ms under load, backs off to 5s idle — mention latency cost once, it returns on the when-not slide.</p><p><strong>If asked "are those the defaults?"</strong> — no: trigger (fixed→adaptive), batch (10→20), retries (3→10), cap (1m→30s) and jitter (0→500ms) are overrides; stop-on-first-failure, delete-completed-records=false, the 2s initial delay and the ×2 multiplier ARE the defaults, restated so this slide reads from one file. Full table: appendix, last slide.</p></aside></section>
+<section class="slide" id="s15" data-num="15" data-sec="F" data-secname="Demo I"       data-until="1620" data-title="Demo — happy path"><div class="canvas"><div class="kicker">demo · first contact</div>
+<h2 class="t">Happy path — one order, end to end</h2>
+<div class="split" style="grid-template-columns:56fr 44fr;margin-top:18px">
+  <div>
+    <div class="cmd">
+      <div class="hdr"><span class="lbl">live 1</span><span class="what">place an order</span><span class="tabs"><button class="tb" data-sh="bash">bash</button><button class="tb" data-sh="ps">PS</button></span><button class="copy">Copy</button></div>
+      <pre data-sh="bash">curl -s -X POST localhost:8090/orders -H 'Content-Type: application/json' -d '{"customerId":"CUST-7","totalAmount":149.90}'</pre>
+      <pre data-sh="ps">irm -Method Post http://localhost:8090/orders -ContentType 'application/json' -Body '{"customerId":"CUST-7","totalAmount":149.90}'</pre>
+    </div>
+    <div class="expect"><div class="xh">response — keep that id on screen</div><samp>{"id":"ORD-XXXXXXXX","customerId":"CUST-7","status":"CREATED",…}</samp></div>
+    <div class="cmd">
+      <div class="hdr"><span class="lbl">live 2</span><span class="what">did it arrive? ask the consumer</span><button class="copy">Copy</button></div>
+      <pre data-sh="bash">curl -s localhost:8091/inbox</pre>
+      <pre data-sh="ps">irm http://localhost:8091/inbox</pre>
+    </div>
+    <div class="expect"><div class="xh">expect</div><samp>{"totalClaims":1,"shipments":1,"recent":[{"eventId":"…","topic":"orders.v1",…}]}</samp></div>
+  </div>
+  <div>
+    <div class="card" style="height:100%">
+      <h3 style="font-size:22px;color:var(--kafka);margin-bottom:14px">what just happened — checklist</h3>
+      <ul class="list tight" style="--acc:var(--kafka)">
+        <li>201 in <b>~10 ms</b> — before any Kafka involvement</li>
+        <li>outbox row born <code class="i">NEW</code> → relay → <code class="i">COMPLETED</code></li>
+        <li>message on <code class="i">orders.v1</code>, key <code class="i">ORD-…</code> — <span class="muted">peek in Conduktor :8080</span></li>
+        <li>one claim + one shipment, committed together</li>
+        <li>logs tell the story: <span style="font-family:var(--mono);font-size:18px;color:#9fd8ae">order created → shipment created</span></li>
+      </ul>
+      <p style="font-size:20px;color:var(--faint);margin-top:16px">Grafana (<span class="warnc">:3000</span>) — "records completed" ticks up; publish p95 visible on the latency panel.</p>
+    </div>
+  </div>
+</div></div><aside class="notes"><p>Deliberately boring — that's the point. Say it: "this is the demo every talk shows; the next four are the ones they don't."</p><p><strong>Keep the ORD-XXXXXXXX visible</strong> (or copy it) — the duplicate and cancel demos reuse it. If Conduktor is up, one quick look at the message: key, eventId header, traceId header, plain-JSON body.</p></aside></section>
+<section class="slide" id="s16" data-num="16" data-sec="F" data-secname="Demo I"       data-until="1620" data-steps="7" data-title="Demo — kill Kafka"><div class="canvas"><div class="kicker">demo · the core proof</div>
+<h2 class="t" style="font-size:42px">Kill Kafka. Keep taking orders.</h2>
+<div class="split" style="margin-top:10px">
+  <div style="position:relative">
+    <svg viewBox="0 0 620 430" style="width:100%">
+      <defs>
+        <marker id="m16" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#98a2b8"/></marker>
+        <g id="env16"><rect width="34" height="24" rx="5" fill="#241d0d" stroke="#f5a623" stroke-width="1.4"/><path d="M2 4 L17 14 L32 4" fill="none" stroke="#f5a623" stroke-width="1.4"/></g>
+      </defs>
+      <rect x="8" y="26" width="250" height="190" rx="12" fill="#12161f" stroke="#4da3ff" stroke-width="2"/>
+      <text x="133" y="54" font-size="18" font-weight="700" fill="#cfe4ff" text-anchor="middle">order-service <tspan font-size="13" fill="#7f9bc4">+ orderdb</tspan></text>
+      <rect x="26" y="70" width="214" height="128" rx="8" fill="#161b26" stroke="#2a3245"/>
+      <text x="38" y="94" font-size="14" fill="#98a2b8">outbox_record</text>
+      <text x="38" y="122" font-size="15" fill="#f5c542" font-family="Consolas,monospace" id="a16-bl">NEW: 0</text>
+      <text x="38" y="148" font-size="15" fill="#ff8d8d" font-family="Consolas,monospace" id="a16-fc">failure_count: 0</text>
+      <g data-show="3" data-hide="6" class="pop"><text x="38" y="180" font-size="13" fill="#8a713a" font-family="Consolas,monospace">next_retry: 2s → 4s → 8s…</text></g>
+      <g data-show="2" class="fly-r"><text x="34" y="248" font-size="16" fill="#3ecf8e" font-weight="700">POST → 201 ✓</text><text x="34" y="272" font-size="13" fill="#69b891">and again ✓ … and again ✓</text></g>
+      <rect x="380" y="36" width="228" height="170" rx="12" fill="#171310" stroke="#f5a623" stroke-width="2"/>
+      <text x="494" y="64" font-size="18" font-weight="700" fill="#ffd9a0" text-anchor="middle">Kafka</text>
+      <rect x="398" y="80" width="56" height="48" rx="8" fill="#241d0d" stroke="#f5a623"/><text x="426" y="109" font-size="13" fill="#f5c542" text-anchor="middle">b1</text>
+      <rect x="466" y="80" width="56" height="48" rx="8" fill="#241d0d" stroke="#f5a623"/><text x="494" y="109" font-size="13" fill="#f5c542" text-anchor="middle">b2</text>
+      <rect x="534" y="80" width="56" height="48" rx="8" fill="#241d0d" stroke="#f5a623"/><text x="562" y="109" font-size="13" fill="#f5c542" text-anchor="middle">b3</text>
+      <g data-show="1" data-hide="5">
+        <text x="426" y="112" font-size="34" fill="#ff5d5d" text-anchor="middle" font-weight="800">✕</text>
+        <text x="494" y="112" font-size="34" fill="#ff5d5d" text-anchor="middle" font-weight="800">✕</text>
+        <text x="562" y="112" font-size="34" fill="#ff5d5d" text-anchor="middle" font-weight="800">✕</text>
+        <text x="494" y="156" font-size="14" fill="#ff8d8d" text-anchor="middle">no quorum — nothing publishes</text>
+      </g>
+      <g data-show="5" class="pop"><text x="494" y="156" font-size="14" fill="#8ee6a8" text-anchor="middle">quorum re-formed ✓</text></g>
+      <g data-show="3" data-hide="6"><line x1="262" y1="120" x2="340" y2="120" stroke="#98a2b8" stroke-width="2" stroke-dasharray="6 5"/><text x="352" y="127" font-size="20" fill="#ff5d5d" font-weight="800">⤾</text><text x="300" y="104" font-size="12" fill="#98a2b8" text-anchor="middle">bounce</text></g>
+      <g data-show="6"><use href="#env16" x="272" y="88" class="fly-R"/><use href="#env16" x="296" y="120" class="fly-R" style="animation-delay:.25s"/><use href="#env16" x="280" y="152" class="fly-R" style="animation-delay:.5s"/><line x1="262" y1="120" x2="372" y2="120" stroke="#f5a623" stroke-width="2.2" marker-end="url(#m16)"/></g>
+      <!-- grafana inset -->
+      <rect x="8" y="300" width="600" height="122" rx="12" fill="#12151d" stroke="#222a3a"/>
+      <text x="24" y="326" font-size="14" fill="#98a2b8">Grafana · Outbox backlog — records awaiting publication</text>
+      <line x1="24" y1="404" x2="592" y2="404" stroke="#2a3245"/>
+      <polyline data-show="4" points="24,404 120,404 190,368 260,352 330,344" fill="none" stroke="#f5c542" stroke-width="2.5"/>
+      <polyline data-show="6" points="330,344 420,360 500,392 560,404" fill="none" stroke="#3ecf8e" stroke-width="2.5"/>
+      <g data-show="7" class="pop"><g transform="rotate(-7 310 210)"><rect x="170" y="180" width="286" height="58" rx="10" fill="#12291f" stroke="#3ecf8e" stroke-width="2.5"/><text x="313" y="218" font-size="26" font-weight="800" fill="#8ee6a8" text-anchor="middle">NOTHING LOST</text></g></g>
+    </svg>
+    <div class="capzone" style="min-height:86px;margin-top:8px">
+      <p class="swapcap" data-show="0" data-hide="1"><span class="muted">The animation mirrors the live demo — it survives even if Docker doesn't.</span></p>
+      <p class="swapcap" data-show="1" data-hide="2"><b>1.</b> Stop <i>all three</i> brokers. The controller quorum is gone.</p>
+      <p class="swapcap" data-show="2" data-hide="3"><b>2.</b> Order anyway → <b>201</b>. The DB is up — the DB is all the front door needs.</p>
+      <p class="swapcap" data-show="3" data-hide="4"><b>3.</b> The relay bounces and backs off exponentially. Failures are <i>rows</i>, not losses.</p>
+      <p class="swapcap" data-show="4" data-hide="5"><b>4.</b> More orders → backlog grows. Grafana draws exactly this line.</p>
+      <p class="swapcap" data-show="5" data-hide="6"><b>5.</b> Brokers return.</p>
+      <p class="swapcap" data-show="6" data-hide="7"><b>6.</b> The backlog drains — in key order, oldest first.</p>
+      <p class="swapcap" data-show="7"><b>7.</b> No replay script. No runbook. <b>The recovery is the pattern.</b></p>
+    </div>
+  </div>
+  <div class="side">
+    <div class="cmd">
+      <div class="hdr"><span class="lbl">live script</span><span class="what">top to bottom</span><span class="tabs"><button class="tb" data-sh="bash">bash</button><button class="tb" data-sh="ps">PS</button></span><button class="copy">Copy</button></div>
+      <pre data-sh="bash"><span class="tk-cm"># 1 · stop every broker</span>
+docker compose stop kafka-1 kafka-2 kafka-3
+
+<span class="tk-cm"># 2 · order while Kafka is fully down</span>
+curl -i -X POST localhost:8090/orders -H 'Content-Type: application/json' -d '{"customerId":"CUST-9","totalAmount":42.00}'
+
+<span class="tk-cm"># 3 · the event is safe — look at it</span>
+docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_key, status, failure_count FROM outbox_record ORDER BY created_at DESC LIMIT 5;"
+
+<span class="tk-cm"># 4 · heal — watch Grafana drain</span>
+docker compose start kafka-1 kafka-2 kafka-3</pre>
+      <pre data-sh="ps"><span class="tk-cm"># 1 · stop every broker</span>
+docker compose stop kafka-1 kafka-2 kafka-3
+
+<span class="tk-cm"># 2 · order while Kafka is fully down</span>
+(iwr -Method Post http://localhost:8090/orders -ContentType 'application/json' -Body '{"customerId":"CUST-9","totalAmount":42.00}').StatusCode
+
+<span class="tk-cm"># 3 · the event is safe — look at it</span>
+docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_key, status, failure_count FROM outbox_record ORDER BY created_at DESC LIMIT 5;"
+
+<span class="tk-cm"># 4 · heal — watch Grafana drain</span>
+docker compose start kafka-1 kafka-2 kafka-3</pre>
+    </div>
+    <div class="expect"><div class="xh">expect</div>
+      <samp>② 201 — accepted, brokers dead</samp>
+      <samp>③ order-ORD-… | NEW | climbing</samp>
+    </div>
+  </div>
+</div></div><aside class="notes"><p><strong>Timing:</strong> brokers take ~20–30 s to re-form quorum after start — run the animation (or talk through the Grafana panel) to fill that gap. The relay's next attempt lands within its current backoff (≤30 s).</p><p>Fail-fast configs from slide 14 are why live 2 returns in ~8 s worst case (max.block.ms) instead of two minutes. If Docker misbehaves entirely: the animation IS the demo — say so, nobody minds.</p><p>Check <code>GET :8091/inbox</code> afterwards: the CUST-9 order shipped. Zero manual steps.</p></aside></section>
+<section class="slide" id="s17" data-num="17" data-sec="G" data-secname="Inbox"        data-until="1920" data-title="The gap that remains"><div class="canvas"><div class="kicker">inbox</div>
+<h2 class="t">The gap that remains — <span class="warnc">two seams no one can close</span></h2>
+<div class="cols" style="margin-top:20px;gap:26px">
+  <div class="card" style="border-top:3px solid var(--producer);padding:22px 26px">
+    <h3 style="font-size:21px;color:var(--producer);margin-bottom:14px">producer side — after the send</h3>
+    <div style="font-family:var(--mono);font-size:20px;line-height:1.5">
+      <div style="padding:9px 0">send to Kafka → broker ack <span class="ok">✓</span></div>
+      <div style="border:2px dashed var(--danger);border-radius:9px;padding:7px 14px;color:var(--danger);font-weight:700;margin:6px 0">⚡ crash here</div>
+      <div style="padding:9px 0;color:var(--muted)">UPDATE outbox_record → COMPLETED <span style="color:var(--faint)">(separate commit)</span></div>
+    </div>
+    <p style="font-size:21px;margin-top:14px;line-height:1.4">on recovery the record is still <code class="i">NEW</code> → <b>sent again</b> → a genuine duplicate on the topic</p>
+  </div>
+  <div class="card" style="border-top:3px solid var(--consumer);padding:22px 26px">
+    <h3 style="font-size:21px;color:var(--consumer);margin-bottom:14px">consumer side — after the work</h3>
+    <div style="font-family:var(--mono);font-size:20px;line-height:1.5">
+      <div style="padding:9px 0">DB tx commits — claim + shipment <span class="ok">✓</span></div>
+      <div style="border:2px dashed var(--danger);border-radius:9px;padding:7px 14px;color:var(--danger);font-weight:700;margin:6px 0">⚡ crash here</div>
+      <div style="padding:9px 0;color:var(--muted)">commit Kafka offset <span style="color:var(--faint)">(separate step)</span></div>
+    </div>
+    <p style="font-size:21px;margin-top:14px;line-height:1.4">on rebalance Kafka <b>redelivers</b> from the old offset → a duplicate <i>delivery</i> to the handler</p>
+  </div>
+</div>
+<div class="banner g" style="margin-top:26px;text-align:center">Both seams produce the <b>same artifact — a duplicate</b>. So one mechanism absorbs both →</div></div><aside class="notes"><p>This slide legitimizes the inbox. Neither seam is a bug: closing them needs an atomic commit across Postgres and Kafka — XA again, which doesn't exist here (the InboxGuard javadoc says exactly this).</p><p>Symmetry is the beauty: totally different failure points, identical downstream symptom, one cure. The green banner hands the mic to the ON CONFLICT slide.</p></aside></section>
+<section class="slide" id="s18" data-num="18" data-sec="G" data-secname="Inbox"        data-until="1920" data-title="One statement, zero races"><div class="canvas"><div class="kicker">inbox</div>
+<h2 class="t">The whole inbox is one statement</h2>
+<figure class="code" style="margin-top:18px">
+  <figcaption><span class="dotc" style="background:var(--consumer)"></span>InboxMessageRepository.java — returns <b>1</b> = first delivery · <b>0</b> = already handled</figcaption>
+  <pre><span class="ln"><span class="tk-sql">INSERT INTO</span> inbox_message</span>
+<span class="ln">    (event_id, consumer, topic, partition_no, record_offset, received_at)</span>
+<span class="ln"><span class="tk-sql">VALUES</span></span>
+<span class="ln">    (:eventId, :consumer, :topic, :partitionNo, :recordOffset, :receivedAt)</span>
+<span class="ln"><span class="tk-sql">ON CONFLICT</span> (event_id, consumer) <span class="tk-sql">DO NOTHING</span></span></pre>
+</figure>
+<div class="cols" style="margin-top:22px;gap:24px">
+  <div class="card" style="border-left:4px solid var(--consumer)">
+    <p style="font-size:23px;line-height:1.45"><b>Check + write = one statement.</b> <code class="i">SELECT</code>-then-<code class="i">INSERT</code> leaves a window two concurrent redeliveries <i>will</i> find — a rebalance lands the same event on two threads at once. Here, the loser of the race gets <b>0 rows</b> from the database itself.</p>
+  </div>
+  <div class="card" style="border-left:4px solid var(--consumer)">
+    <p style="font-size:23px;line-height:1.45"><b>PK is <code class="i">(event_id, consumer)</code></b> — not <code class="i">event_id</code> alone. Several consumers fan out from one topic; each keeps its own ledger, so shipping processing an event never starves analytics of it.</p>
+  </div>
+</div></div><aside class="notes"><p>The single most important slide of the inbox half. Read the SQL aloud — it takes ten seconds and it's the entire mechanism.</p><p>"The database is the referee": unique-constraint arbitration is the only dedup that survives concurrency, crashes, and rebalances with no extra coordination. Native query because JPQL has no upsert.</p></aside></section>
+<section class="slide" id="s19" data-num="19" data-sec="G" data-secname="Inbox"        data-until="1920" data-title="Claim, then act"><div class="canvas"><div class="kicker">inbox</div>
+<h2 class="t">Consumer shape — claim, then act</h2>
+<div class="split" style="grid-template-columns:62fr 38fr;margin-top:16px">
+  <figure class="code">
+    <figcaption><span class="dotc" style="background:var(--consumer)"></span>shipping-service · OrderEventListener.java · 54–70</figcaption>
+    <pre class="sm"><span class="ln" data-n="54"><span class="tk-ann">@KafkaListener</span>(id = <span class="tk-str">"orders-created"</span>,</span>
+<span class="ln" data-n="56">        topics = <span class="tk-str">"orders.v1"</span>,</span>
+<span class="ln" data-n="57">        groupId = <span class="tk-str">"shipping-service"</span>, …)</span>
+<span class="ln" data-n="59"><span class="tk-ann">@Transactional</span></span>
+<span class="ln" data-n="60"><span class="tk-kw">public void</span> <span class="tk-mth">onOrderCreated</span>(</span>
+<span class="ln" data-n="61">        <span class="tk-ann">@Payload</span> <span class="tk-type">OrderCreated</span> event,</span>
+<span class="ln" data-n="62">        <span class="tk-ann">@Header</span>(RECEIVED_TOPIC) <span class="tk-type">String</span> topic,</span>
+<span class="ln" data-n="63">        <span class="tk-ann">@Header</span>(RECEIVED_PARTITION) <span class="tk-kw">int</span> partition,</span>
+<span class="ln" data-n="64">        <span class="tk-ann">@Header</span>(OFFSET) <span class="tk-kw">long</span> offset) {</span>
+<span class="ln" data-n="65"> </span>
+<span class="ln hl" data-n="66">    <span class="tk-kw">if</span> (!inboxGuard.<span class="tk-mth">claim</span>(event.<span class="tk-mth">eventId</span>(),</span>
+<span class="ln hl" data-n="">            CONSUMER, topic, partition, offset)) {</span>
+<span class="ln hl" data-n="67">        <span class="tk-kw">return</span>;   <span class="tk-cm">// duplicate — the offset commits</span></span>
+<span class="ln hl" data-n="68">    }</span>
+<span class="ln" data-n="69">    shipmentService.<span class="tk-mth">createShipment</span>(event);</span>
+<span class="ln" data-n="70">}</span></pre>
+  </figure>
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div class="card" style="padding:18px 22px">
+      <p style="font-size:21px;line-height:1.45"><code class="i">claim()</code> is <b>@Transactional(propagation&nbsp;=&nbsp;MANDATORY)</b> — calling it outside a transaction fails loudly. A self-committing claim could mark work done… that then rolls back. That's a <i>lost event</i>.</p>
+    </div>
+    <div class="card" style="padding:18px 22px">
+      <p style="font-size:21px;line-height:1.45"><code class="i">enable-auto-commit=false</code> · <code class="i">ack-mode: record</code> · <code class="i">concurrency: 3</code> — three threads racing is the normal case, not the edge case.</p>
+    </div>
+    <div class="card" style="padding:18px 22px">
+      <p style="font-size:21px;line-height:1.45">Every claim increments <code class="i">inbox.messages.processed</code> or <code class="i">.duplicate</code> — the Grafana panel you'll watch in the demos.</p>
+    </div>
+  </div>
+</div></div><aside class="notes"><p>The pattern in one sentence: <strong>claim, then act, in one transaction</strong> — first delivery inserts+works+commits; duplicate returns early (offset commits, no second shipment); failure rolls back both (redelivery is a genuine first attempt).</p><p>Those three sentences ARE the three demos coming up. Say them here, prove them next.</p></aside></section>
+<section class="slide" id="s20" data-num="20" data-sec="G" data-secname="Inbox"        data-until="1920" data-title="Why hand-rolled"><div class="canvas"><div class="kicker">inbox</div>
+<h2 class="t">Why this module is hand-rolled</h2>
+<div class="split" style="grid-template-columns:58fr 42fr;margin-top:22px">
+  <ul class="list">
+    <li>namastack ships <strong>outbox only</strong> — there is <strong>no inbox / idempotent-consumer starter for Spring Boot 4</strong> today.</li>
+    <li>The one first-party alternative — Spring Integration's <code class="i">IdempotentReceiverInterceptor</code> + <code class="i">JdbcMetadataStore</code> — drags you into channel adapters. You lose plain <code class="i">@KafkaListener</code>.</li>
+    <li>So: a bespoke module. The entire mechanism is the <strong>one SQL statement</strong> you just saw — everything else is wiring.</li>
+    <li><strong>Library discipline:</strong> no <code class="i">@EntityScan</code> / <code class="i">@EnableJpaRepositories</code> inside the module — either one would <em>replace</em> the host app's own scanning.</li>
+  </ul>
+  <div class="card">
+    <h3 style="font-size:22px;margin-bottom:12px;color:var(--consumer)">inbox-support — six files</h3>
+    <div style="font-family:var(--mono);font-size:20px;line-height:1.9;color:var(--muted)">
+      <div><span class="cons">InboxGuard</span> — claim()</div>
+      <div><span class="cons">InboxMessageRepository</span> — the SQL</div>
+      <div><span class="cons">InboxMessage</span> — composite-PK entity</div>
+      <div><span class="cons">InboxAutoConfiguration</span></div>
+      <div><span class="cons">InboxCleanupJob</span> — retention</div>
+      <div><span class="cons">InboxProperties</span></div>
+    </div>
+    <p style="font-size:20px;color:var(--faint);margin-top:14px">auditable in one sitting</p>
+  </div>
+</div></div><aside class="notes"><p>Anticipates the obvious question "why didn't you just add a dependency". Answer: I looked — namastack's org has exactly one library repo, and it's the outbox.</p><p>The @EntityScan point is a genuine Boot gotcha worth 20 seconds: a library declaring it silently breaks the application's entity discovery. The consuming app owns the declaration.</p></aside></section>
+<section class="slide" id="s21" data-num="21" data-sec="H" data-secname="Demo II"      data-until="2340" data-steps="6" data-title="Demo — same event, twice"><div class="canvas"><div class="kicker">demo · duplicates</div>
+<h2 class="t" style="font-size:42px">Deliver the same event twice</h2>
+<div class="split" style="margin-top:10px">
+  <div style="position:relative">
+    <svg viewBox="0 0 620 430" style="width:100%">
+      <defs>
+        <marker id="m21" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#98a2b8"/></marker>
+        <g id="env21"><rect width="120" height="34" rx="7" fill="#241d0d" stroke="#f5a623" stroke-width="1.5"/><text x="60" y="22" font-size="13" fill="#f5c542" text-anchor="middle" font-family="Consolas,monospace">evt 4f9c…</text></g>
+      </defs>
+      <rect x="8" y="30" width="170" height="150" rx="12" fill="#171310" stroke="#f5a623" stroke-width="2"/>
+      <text x="93" y="56" font-size="16" font-weight="700" fill="#ffd9a0" text-anchor="middle">orders.v1</text>
+      <g data-show="1" data-hide="2"><use href="#env21" x="32" y="70"/></g>
+      <g data-show="1" data-hide="4"><use href="#env21" x="32" y="118"/><text x="93" y="170" font-size="12" fill="#8a713a" text-anchor="middle">↑ redelivery — same bytes</text></g>
+      <rect x="250" y="66" width="180" height="66" rx="12" fill="#101a14" stroke="#3ecf8e" stroke-width="2"/>
+      <text x="340" y="94" font-size="16" font-weight="700" fill="#c9f2dd" text-anchor="middle">InboxGuard</text>
+      <text x="340" y="116" font-size="14" fill="#69b891" text-anchor="middle" font-family="Consolas,monospace">claim(eventId, …)</text>
+      <!-- counters -->
+      <text x="612" y="46" font-size="15" fill="#8ee6a8" text-anchor="end" font-family="Consolas,monospace">processed: <tspan data-show="0" data-hide="2">0</tspan><tspan data-show="2">1</tspan></text>
+      <text x="612" y="72" font-size="15" fill="#f5c542" text-anchor="end" font-family="Consolas,monospace">duplicate: <tspan data-show="0" data-hide="4">0</tspan><tspan data-show="4">1</tspan></text>
+      <!-- first delivery -->
+      <g data-show="2" data-hide="3" class="fly-R"><use href="#env21" x="180" y="82" transform="scale(.8)" transform-origin="180 82"/></g>
+      <g data-show="2"><line x1="380" y1="132" x2="430" y2="212" stroke="#3ecf8e" stroke-width="2.4" marker-end="url(#m21)"/><text x="428" y="166" font-size="14" fill="#8ee6a8">INSERT → 1 row</text></g>
+      <g data-show="3" data-hide="4" class="fly-R"><use href="#env21" x="180" y="112" transform="scale(.8)" transform-origin="180 112"/></g>
+      <g data-show="4"><line x1="300" y1="132" x2="200" y2="200" stroke="#f5c542" stroke-width="2.2" stroke-dasharray="6 5" marker-end="url(#m21)"/><text x="150" y="188" font-size="14" fill="#f5c542">0 rows → return</text><text x="150" y="210" font-size="13" fill="#8a713a">offset commits anyway ✓</text></g>
+      <!-- tables -->
+      <rect x="8" y="240" width="288" height="92" rx="10" fill="#161b26" stroke="#2a3245"/>
+      <text x="22" y="266" font-size="15" fill="#98a2b8">inbox_message <tspan fill="#5b657a" font-size="12">PK (event_id, consumer)</tspan></text>
+      <g data-show="2" class="pop"><text x="22" y="296" font-size="14" fill="#8ee6a8" font-family="Consolas,monospace">4f9c… · shipping-service</text></g>
+      <g data-show="5" class="pop"><rect x="14" y="280" width="276" height="24" rx="6" fill="none" stroke="#3ecf8e" stroke-width="2"/><text x="22" y="326" font-size="13" fill="#3ecf8e">ONE claim — ever</text></g>
+      <rect x="330" y="240" width="282" height="92" rx="10" fill="#161b26" stroke="#2a3245"/>
+      <text x="344" y="266" font-size="15" fill="#98a2b8">shipments</text>
+      <g data-show="2" class="pop"><text x="344" y="296" font-size="14" fill="#8ee6a8" font-family="Consolas,monospace">SHP-17 → ORD-91</text></g>
+      <g data-show="5" class="pop"><rect x="336" y="280" width="270" height="24" rx="6" fill="none" stroke="#3ecf8e" stroke-width="2"/><text x="344" y="326" font-size="13" fill="#3ecf8e">ONE shipment — ever</text></g>
+      <!-- race beat -->
+      <g data-show="6" class="pop">
+        <rect x="8" y="352" width="604" height="70" rx="10" fill="#12151d" stroke="#4a3d1e"/>
+        <text x="24" y="380" font-size="14" fill="#e9edf5">thread-1 ⟶ <tspan fill="#8ee6a8" font-family="Consolas,monospace">1 row ✓</tspan>&#160;&#160;&#160;&#160;thread-2 ⟶ <tspan fill="#f5c542" font-family="Consolas,monospace">0 rows → skip</tspan>&#160;&#160;&#160;<tspan fill="#98a2b8">— simultaneously</tspan></text>
+        <text x="24" y="406" font-size="14" fill="#98a2b8">the primary key is the referee — <tspan fill="#ff8d8d">SELECT-then-INSERT has no referee</tspan></text>
+      </g>
+    </svg>
+    <div class="capzone" style="min-height:80px;margin-top:6px">
+      <p class="swapcap" data-show="0" data-hide="1"><span class="muted">At-least-once means this <i>will</i> happen. Watch it be boring.</span></p>
+      <p class="swapcap" data-show="1" data-hide="2"><b>1.</b> Two identical deliveries — same <code class="i">eventId</code>, byte-identical payload.</p>
+      <p class="swapcap" data-show="2" data-hide="3"><b>2.</b> First delivery: claim inserts → shipment created → both commit together.</p>
+      <p class="swapcap" data-show="3" data-hide="4"><b>3.</b> The duplicate arrives — later, or on another thread. Doesn't matter.</p>
+      <p class="swapcap" data-show="4" data-hide="5"><b>4.</b> <code class="i">DO NOTHING</code> → 0 rows → early return. The offset still commits. No exception — a duplicate is <b>not an error</b>.</p>
+      <p class="swapcap" data-show="5" data-hide="6"><b>5.</b> Net effect: one claim, one shipment, one counter ticked.</p>
+      <p class="swapcap" data-show="6"><b>6.</b> Even <i>simultaneous</i> deliveries: the PK arbitrates — one gets 1, one gets 0.</p>
+    </div>
+  </div>
+  <div class="side">
+    <div class="cmd">
+      <div class="hdr"><span class="lbl">live script</span><span class="what">use the id from demo 1</span><span class="tabs"><button class="tb" data-sh="bash">bash</button><button class="tb" data-sh="ps">PS</button></span><button class="copy">Copy</button></div>
+      <pre data-sh="bash"><span class="tk-cm"># 1 · replay through the real pipeline</span>
+curl -s -X POST localhost:8090/demo/duplicate/ORD-XXXXXXXX
+
+<span class="tk-cm"># 2 · prove nothing changed</span>
+curl -s localhost:8091/inbox
+
+<span class="tk-cm"># 3 · the metric moved instead</span>
+curl -s localhost:8091/actuator/prometheus | grep inbox_messages</pre>
+      <pre data-sh="ps"><span class="tk-cm"># 1 · replay through the real pipeline</span>
+irm -Method Post http://localhost:8090/demo/duplicate/ORD-XXXXXXXX
+
+<span class="tk-cm"># 2 · prove nothing changed</span>
+irm http://localhost:8091/inbox
+
+<span class="tk-cm"># 3 · the metric moved instead</span>
+(irm http://localhost:8091/actuator/prometheus) -split "`n" | Select-String inbox_messages</pre>
+    </div>
+    <div class="expect"><div class="xh">expect · logs &amp; state</div>
+      <samp class="warns">WARN DEMO: re-scheduled duplicate of eventId=… — the inbox should suppress it</samp>
+      <samp>INFO inbox: duplicate suppressed eventId=… topic=orders.v1 …</samp>
+      <samp>totalClaims &amp; shipments — unchanged · inbox_messages_duplicate_total 1.0</samp>
+    </div>
+  </div>
+</div></div><aside class="notes"><p>Use the ORD id from the happy-path demo. The replay is honest: <code>created_event_id</code> stored on the order row lets the demo re-schedule a <strong>byte-identical</strong> event through the real outbox → Kafka → listener path — no side channel.</p><p>This simulates the one duplicate the outbox can't rule out: relay sends, crashes before marking COMPLETED, resends on recovery.</p><p>Grafana: "Duplicates suppressed vs. events processed" — the orange line moves. Panel description calls it "the point of the whole exercise".</p></aside></section>
+<section class="slide" id="s22" data-num="22" data-sec="H" data-secname="Demo II"      data-until="2340" data-steps="8" data-title="Demo — poison → DLT"><div class="canvas"><div class="kicker">demo · poison pill</div>
+<h2 class="t" style="font-size:42px">Poison → retries → DLT — <span class="cons">no claim left behind</span></h2>
+<div class="split" style="margin-top:10px">
+  <div style="position:relative">
+    <svg viewBox="0 0 620 430" style="width:100%">
+      <defs>
+        <marker id="m22" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#98a2b8"/></marker>
+        <g id="env22"><rect width="46" height="30" rx="6" fill="#241d0d" stroke="#f5a623" stroke-width="1.5"/><path d="M3 5 L23 17 L43 5" fill="none" stroke="#f5a623" stroke-width="1.5"/></g>
+      </defs>
+      <!-- partition strip -->
+      <rect x="8" y="30" width="604" height="64" rx="10" fill="#171310" stroke="#f5a623" stroke-width="1.6"/>
+      <text x="22" y="56" font-size="14" fill="#8a713a" font-family="Consolas,monospace">orders.v1 · p1</text>
+      <g><use href="#env22" x="150" y="44"/><text x="173" y="88" font-size="15" fill="#ff8d8d" text-anchor="middle">☠ CUST-POISON</text></g>
+      <g data-show="0" data-hide="7"><use href="#env22" x="230" y="44" opacity=".75"/><use href="#env22" x="292" y="44" opacity=".55"/><text x="290" y="88" font-size="13" fill="#8a713a">healthy events queued behind</text></g>
+      <g data-show="7" class="fly-R"><use href="#env22" x="440" y="44" opacity=".9"/><use href="#env22" x="502" y="44" opacity=".8"/><text x="500" y="88" font-size="13" fill="#8ee6a8">flowing again ✓</text></g>
+      <!-- consumer + tx -->
+      <rect x="60" y="120" width="290" height="150" rx="12" fill="#101a14" stroke="#3ecf8e" stroke-width="2"/>
+      <text x="205" y="148" font-size="17" font-weight="700" fill="#c9f2dd" text-anchor="middle">shipping-service handler</text>
+      <g data-show="2" data-hide="3" class="pop"><text x="205" y="180" font-size="14" fill="#c9f2dd" text-anchor="middle" font-family="Consolas,monospace">claim() → 1 row <tspan fill="#5b657a">(uncommitted)</tspan></text></g>
+      <g data-show="2" data-now="2,4" class="pop"><text x="205" y="216" font-size="17" fill="#ff8d8d" text-anchor="middle" font-family="Consolas,monospace">✳ IllegalStateException</text><text x="205" y="240" font-size="13" fill="#ff8d8d" text-anchor="middle">"poison event for customer CUST-POISON"</text></g>
+      <g data-show="2" data-hide="3" data-now="2"><rect x="72" y="158" width="266" height="98" rx="10" fill="none" stroke="#f5c542" stroke-width="2.2" stroke-dasharray="8 6"/></g>
+      <g data-show="3" data-now="3,5" class="flash-r"><rect x="72" y="158" width="266" height="98" rx="10" fill="none" stroke="#ff5d5d" stroke-width="2.2" stroke-dasharray="8 6"/><text x="205" y="286" font-size="14" fill="#ff8d8d" text-anchor="middle">rollback — claim AND work undone</text></g>
+      <!-- attempt counter -->
+      <rect x="400" y="130" width="212" height="90" rx="12" fill="#12151d" stroke="#4a3d1e"/>
+      <text x="416" y="160" font-size="14" fill="#98a2b8">DefaultErrorHandler</text>
+      <text x="416" y="190" font-size="19" fill="#f5c542" font-family="Consolas,monospace" id="a22-att">attempt 1 / 4</text>
+      <text x="416" y="212" font-size="13" fill="#8a713a" font-family="Consolas,monospace" id="a22-bo">FixedBackOff(1s, 3)</text>
+      <!-- inbox table -->
+      <rect x="60" y="300" width="290" height="66" rx="10" fill="#161b26" stroke="#2a3245"/>
+      <text x="76" y="326" font-size="15" fill="#98a2b8">inbox_message</text>
+      <g data-show="2" data-hide="3"><text x="76" y="352" font-size="14" fill="#8ee6a8" font-family="Consolas,monospace" opacity=".5">☠ evt 9d2e… (ghost — in tx)</text></g>
+      <g data-show="3" class="pop"><text x="76" y="352" font-size="14" fill="#5b657a" font-family="Consolas,monospace">— empty. zero rows. always. —</text></g>
+      <g data-show="3" data-hide="6" class="pop"><rect x="368" y="300" width="244" height="66" rx="10" fill="#12291f" stroke="#3ecf8e" stroke-width="2"/><text x="490" y="328" font-size="16" font-weight="800" fill="#8ee6a8" text-anchor="middle">NO CLAIM LEFT BEHIND</text><text x="490" y="350" font-size="13" fill="#69b891" text-anchor="middle">every retry = a genuine first attempt</text></g>
+      <!-- DLT lane -->
+      <g data-show="6"><rect x="8" y="384" width="604" height="44" rx="10" fill="#1a1114" stroke="#6b3038" stroke-width="1.6"/><text x="22" y="412" font-size="14" fill="#ff8d8d" font-family="Consolas,monospace">orders.v1.DLT · p1  ← same partition, ordering preserved</text></g>
+      <g data-show="6" class="fly-d"><use href="#env22" x="440" y="390" transform="scale(.8)" transform-origin="440 390"/></g>
+      <g data-show="8" class="pop"><text x="606" y="412" font-size="13" fill="#e8cf8d" text-anchor="end" font-family="Consolas,monospace">group: shipping-service-dlt 👁</text></g>
+    </svg>
+    <div class="capzone" style="min-height:80px;margin-top:6px">
+      <p class="swapcap" data-show="0" data-hide="1"><span class="muted">One bad event. Three questions: does it loop? does it lie? does it block?</span></p>
+      <p class="swapcap" data-show="1" data-hide="2"><b>1.</b> The poison event reaches the handler first — two healthy events stuck behind it.</p>
+      <p class="swapcap" data-show="2" data-hide="3"><b>2.</b> Transaction opens, claim inserts (uncommitted)… and the handler throws.</p>
+      <p class="swapcap" data-show="3" data-hide="4"><b>3.</b> Rollback. The claim <b>dissolves with the work</b> — the event was never falsely marked handled.</p>
+      <p class="swapcap" data-show="4" data-hide="5"><b>4.</b> Retry — 1 s later. Same story. And that's fine: no claim survived, so it's a clean slate.</p>
+      <p class="swapcap" data-show="5" data-hide="6"><b>5.</b> Attempts 3 and 4 burn down. <code class="i">IllegalArgumentException</code> would skip retries — this one is retryable.</p>
+      <p class="swapcap" data-show="6" data-hide="7"><b>6.</b> The recoverer publishes to <code class="i">orders.v1.DLT</code> — <b>same partition</b>, key ordering preserved.</p>
+      <p class="swapcap" data-show="7" data-hide="8"><b>7.</b> Offset commits, the partition <b>unblocks</b> — the healthy events flow.</p>
+      <p class="swapcap" data-show="8"><b>8.</b> A separate group (<code class="i">shipping-service-dlt</code>) watches the DLT — in production, that's an alert.</p>
+    </div>
+  </div>
+  <div class="side">
+    <div class="cmd">
+      <div class="hdr"><span class="lbl">live script</span><span class="what">logs tailing first</span><span class="tabs"><button class="tb" data-sh="bash">bash</button><button class="tb" data-sh="ps">PS</button></span><button class="copy">Copy</button></div>
+      <pre data-sh="bash"><span class="tk-cm"># 0 · in its own terminal, already running</span>
+docker logs -f shipping-service
+
+<span class="tk-cm"># 1 · the magic customer — note: returns 201!</span>
+curl -s -X POST localhost:8090/orders -H 'Content-Type: application/json' -d '{"customerId":"CUST-POISON","totalAmount":1.00}'
+
+<span class="tk-cm"># 2 · the punchline — count the claims</span>
+curl -s localhost:8091/inbox</pre>
+      <pre data-sh="ps"><span class="tk-cm"># 0 · in its own terminal, already running</span>
+docker logs -f shipping-service
+
+<span class="tk-cm"># 1 · the magic customer — note: returns 201!</span>
+irm -Method Post http://localhost:8090/orders -ContentType 'application/json' -Body '{"customerId":"CUST-POISON","totalAmount":1.00}'
+
+<span class="tk-cm"># 2 · the punchline — count the claims</span>
+irm http://localhost:8091/inbox</pre>
+    </div>
+    <div class="expect"><div class="xh">expect · in order</div>
+      <samp class="warns">WARN&nbsp; IllegalStateException: poison event … ×4, 1 s apart</samp>
+      <samp class="err">ERROR routing to DLT: topic=orders.v1 …</samp>
+      <samp class="err">ERROR DLT: key=ORD-… originalTopic=orders.v1 …</samp>
+      <samp>totalClaims unchanged — 4 failures, zero rows</samp>
+    </div>
+  </div>
+</div></div><aside class="notes"><p>The subtle beat is step 3 and it's easy to rush: the claim was INSERTED (1 row!) and then <strong>un</strong>-inserted by the rollback. MANDATORY propagation is what makes this impossible to get wrong — a self-committing claim here would have silently dropped the event.</p><p>Timeline is fast: 4 attempts × 1 s ≈ 4–5 s total before the DLT lines appear. Have the logs already tailing.</p><p><strong>Log levels, so the tail doesn't surprise you:</strong> the four retry lines are <code>WARN</code> — <code>KafkaConsumerConfig</code> calls <code>handler.setLogLevel(WARN)</code>, since an attempt that will be retried is not yet an error. Only the two DLT lines are <code>ERROR</code>, and both are ours: the recoverer's <code>"routing to DLT"</code> and the DLT listener's <code>"DLT: key=…"</code>. Don't grep for ERROR during the retries — there won't be any.</p><p>Conduktor: show the record sitting on orders.v1.DLT, same partition as the original.</p></aside></section>
+<section class="slide" id="s23" data-num="23" data-sec="H" data-secname="Demo II"      data-until="2340" data-steps="5" data-title="Demo — ordering"><div class="canvas"><div class="kicker">demo · ordering</div>
+<h2 class="t" style="font-size:42px">One key, two API styles, two topics</h2>
+<div class="split" style="margin-top:10px">
+  <div style="position:relative">
+    <svg viewBox="0 0 620 430" style="width:100%">
+      <defs><marker id="m23" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#98a2b8"/></marker></defs>
+      <!-- producers -->
+      <text x="14" y="46" font-size="15" fill="#7f9bc4" font-family="Consolas,monospace">outbox.schedule(created)</text>
+      <text x="14" y="86" font-size="15" fill="#c7bdf7" font-family="Consolas,monospace">@OutboxEvent(cancelled)</text>
+      <line x1="252" y1="40" x2="300" y2="66" stroke="#4da3ff" stroke-width="1.8" marker-end="url(#m23)"/>
+      <line x1="252" y1="82" x2="300" y2="72" stroke="#8f7df0" stroke-width="1.8" marker-end="url(#m23)"/>
+      <!-- outbox table -->
+      <rect x="308" y="30" width="304" height="96" rx="10" fill="#161b26" stroke="#2a3245"/>
+      <text x="322" y="54" font-size="14" fill="#98a2b8">outbox_record</text>
+      <g data-show="1" class="pop"><text x="322" y="80" font-size="14" fill="#d6deeb" font-family="Consolas,monospace">OrderCreated   · <tspan fill="#f5c542">order-ORD-91</tspan></text></g>
+      <g data-show="1" class="pop"><text x="322" y="106" font-size="14" fill="#d6deeb" font-family="Consolas,monospace">OrderCancelled · <tspan fill="#f5c542">order-ORD-91</tspan></text></g>
+      <g data-show="1" data-now="1"><rect x="424" y="64" width="140" height="50" rx="7" fill="none" stroke="#f5c542" stroke-width="2"/><text x="494" y="146" font-size="13" fill="#f5c542" text-anchor="middle">identical key = one queue</text></g>
+      <!-- relay -->
+      <circle cx="180" cy="200" r="26" fill="#14243a" stroke="#4da3ff" stroke-width="2"/><text x="180" y="206" font-size="13" fill="#cfe4ff" text-anchor="middle">relay</text>
+      <g data-show="2" data-hide="3"><rect x="220" y="182" width="180" height="36" rx="8" fill="#1d2432" stroke="#2a3245"/><text x="310" y="206" font-size="13" fill="#98a2b8" text-anchor="middle">cancelled waits its turn…</text></g>
+      <!-- topic lanes -->
+      <rect x="8" y="250" width="604" height="46" rx="9" fill="#171310" stroke="#f5a623" stroke-width="1.5"/>
+      <text x="20" y="279" font-size="13" fill="#8a713a" font-family="Consolas,monospace">orders.v1 · p1</text>
+      <rect x="8" y="306" width="604" height="46" rx="9" fill="#171310" stroke="#f5a623" stroke-width="1.5"/>
+      <text x="20" y="335" font-size="13" fill="#8a713a" font-family="Consolas,monospace">orders.v1.cancelled · p1</text>
+      <g data-show="2" class="fly-r"><rect x="200" y="258" width="128" height="30" rx="6" fill="#241d0d" stroke="#4da3ff"/><text x="264" y="278" font-size="13" fill="#cfe4ff" text-anchor="middle" font-family="Consolas,monospace">created</text></g>
+      <g data-show="3" class="fly-r"><rect x="160" y="314" width="128" height="30" rx="6" fill="#241d0d" stroke="#8f7df0"/><text x="224" y="334" font-size="13" fill="#c7bdf7" text-anchor="middle" font-family="Consolas,monospace">cancelled</text></g>
+      <g data-show="4" class="fly-R"><rect x="430" y="314" width="128" height="30" rx="6" fill="#241d0d" stroke="#8f7df0" stroke-width="2"/><text x="494" y="334" font-size="13" fill="#c7bdf7" text-anchor="middle" font-family="Consolas,monospace">cancelled ⚡</text></g>
+      <g data-show="4"><text x="452" y="242" font-size="14" fill="#e8cf8d" text-anchor="middle">separate topics — the consumer may see them cross</text><rect x="360" y="258" width="128" height="30" rx="6" fill="#241d0d" stroke="#4da3ff" stroke-dasharray="4 4"/><text x="424" y="278" font-size="13" fill="#7f9bc4" text-anchor="middle" font-family="Consolas,monospace">created …lag</text></g>
+      <!-- consumer verdict -->
+      <g data-show="5" class="pop">
+        <rect x="8" y="368" width="604" height="56" rx="10" fill="#12151d" stroke="#4a3d1e"/>
+        <text x="24" y="392" font-size="14" fill="#e8cf8d" font-family="Consolas,monospace">WARN cancellation for order=ORD-91 has no shipment yet; nothing to do</text>
+        <text x="24" y="414" font-size="13" fill="#98a2b8">not an error — tolerated by design, because cross-topic order is not promised</text>
+      </g>
+    </svg>
+    <div class="capzone" style="min-height:80px;margin-top:6px">
+      <p class="swapcap" data-show="0" data-hide="1"><span class="muted">Create, then cancel — the ordering story has a guaranteed half and an honest half.</span></p>
+      <p class="swapcap" data-show="1" data-hide="2"><b>1.</b> Two API styles, two modules — <b>one identical key</b>. namastack queues per key.</p>
+      <p class="swapcap" data-show="2" data-hide="3"><b>2.</b> The relay is strictly sequential per key: <i>created</i> leaves; <i>cancelled</i> waits. <code class="i">stop-on-first-failure</code> keeps that queue honest even under errors.</p>
+      <p class="swapcap" data-show="3" data-hide="4"><b>3.</b> Both land — same partition number, <b>different topics</b>.</p>
+      <p class="swapcap" data-show="4" data-hide="5"><b>4.</b> Two topics = two consumer streams. The cancel <i>can</i> overtake the create.</p>
+      <p class="swapcap" data-show="5"><b>5.</b> The handler tolerates it — a WARN, not a crash. <b>Per topic-partition: guaranteed. Across topics: tolerance is the design.</b></p>
+    </div>
+  </div>
+  <div class="side">
+    <div class="cmd">
+      <div class="hdr"><span class="lbl">live script</span><span class="what">same order id again</span><span class="tabs"><button class="tb" data-sh="bash">bash</button><button class="tb" data-sh="ps">PS</button></span><button class="copy">Copy</button></div>
+      <pre data-sh="bash"><span class="tk-cm"># 1 · cancel the happy-path order</span>
+curl -s -X POST "localhost:8090/orders/ORD-XXXXXXXX/cancel?reason=changed-mind"
+
+<span class="tk-cm"># 2 · one key, both events, in order</span>
+docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status FROM outbox_record WHERE record_key='order-ORD-XXXXXXXX' ORDER BY created_at;"</pre>
+      <pre data-sh="ps"><span class="tk-cm"># 1 · cancel the happy-path order</span>
+irm -Method Post "http://localhost:8090/orders/ORD-XXXXXXXX/cancel?reason=changed-mind"
+
+<span class="tk-cm"># 2 · one key, both events, in order</span>
+docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status FROM outbox_record WHERE record_key='order-ORD-XXXXXXXX' ORDER BY created_at;"</pre>
+    </div>
+    <div class="expect"><div class="xh">expect</div>
+      <samp>shipment cancelled id=… order=ORD-… reason=changed-mind</samp>
+      <samp class="warns">— or, legitimately: WARN … no shipment yet; nothing to do</samp>
+      <samp>…OrderCreated | COMPLETED&nbsp;&nbsp;then&nbsp;&nbsp;…OrderCancelled | COMPLETED</samp>
+    </div>
+  </div>
+</div></div><aside class="notes"><p>The most senior slide of the demo block: it shows a <em>limit</em>. Per-key ordering is real on each topic-partition; the create/cancel pair still crosses topics, so the consumer tolerates early cancels instead of pretending.</p><p>If someone asks "why two topics then?" — fair question: one topic with an event-type header is a legitimate alternative; this POC keeps them split to make the limitation visible.</p><p>The SpEL key on the annotation reproducing the Java concatenation is what makes row 1 possible — drift test pins it (slide 26).</p></aside></section>
+<section class="slide" id="s24" data-num="24" data-sec="I" data-secname="Sharp edges"  data-until="2610" data-title="Sharp edges I shipped"><div class="canvas"><div class="kicker">sharp edges · 1</div>
+<h2 class="t">Bugs I shipped in my own demo</h2>
+<div style="display:flex;flex-direction:column;gap:11px;margin-top:14px">
+  <div class="card" style="border-left:4px solid var(--warn)">
+    <h3 style="font-size:25px;margin-bottom:8px">The two keys that were "the same"</h3>
+    <p style="font-size:22px;line-height:1.45;color:var(--muted)">Comment &amp; diagram claim <i>Kafka key == outbox key</i>. Reality: outbox key <code class="i">order-ORD-4F2A</code>, Kafka key <code class="i">ORD-4F2A</code>. Ordering survives — each is consistent per order — but the diagram lies, and anyone joining or deduping "on the key" gets burned.</p>
+  </div>
+  <div class="card" style="border-left:4px solid var(--danger)">
+    <h3 style="font-size:25px;margin-bottom:8px">The DLT that doesn't exist</h3>
+    <p style="font-size:22px;line-height:1.45;color:var(--muted)">The recoverer targets <code class="i">topic + ".DLT"</code> — but only <code class="i">orders.v1.DLT</code> was ever created, and auto-create is off. A poisoned <i>cancellation</i> has nowhere to go: the <b>recovery path itself</b> fails, silently, until the first bad cancel.</p>
+  </div>
+  <div class="card" style="border-left:4px solid var(--kafka)">
+    <h3 style="font-size:25px;margin-bottom:8px">Retention <i>is</i> the dedup window</h3>
+    <p style="font-size:22px;line-height:1.45;color:var(--muted)">Inbox claims are purged after 7 days. Anything redelivered later is processed <b>again</b> — so inbox retention must stay comfortably above topic retention. An unbounded ledger is a slow-motion outage; a short one silently reopens the duplicate window.</p>
+  </div>
+</div>
+<div class="foot">All three were found by re-reading, not by tests. What the tests <i>do</i> pin — two slides ahead.</div></div><aside class="notes"><p>The credibility slide — deliver it as confessions, not caveats. Each one is "claimed / actual / who gets burned".</p><ul><li>Key drift: if someone opens Conduktor during demo 1 they can SEE the key is <code>ORD-…</code> while the outbox row says <code>order-ORD-…</code>. Own it before they spot it.</li><li>Missing DLT: only the created-order poison path is demoed; a poisoned cancel would break the recoverer. That's a config review item, not a code fix.</li></ul></aside></section>
+<section class="slide" id="s25" data-num="25" data-sec="I" data-secname="Sharp edges"  data-until="2610" data-title="Library realities"><div class="canvas"><div class="kicker">sharp edges · 2</div>
+<h2 class="t">Library realities</h2>
+<ul class="list" style="margin-top:24px">
+  <li style="padding-bottom:20px"><strong>The metadata hides the record id.</strong> <code class="i">OutboxRecordMetadata</code> exposes key, context, failureCount, attempt — <b>not</b> the outbox record id. So the idempotency key must live <strong>in the payload</strong>. <span class="ok">Better anyway:</span> the event id becomes part of the published contract instead of leaking infrastructure state.</li>
+  <li style="padding-bottom:20px"><strong>201 ≠ "on the topic".</strong> It means <i>durably recorded and guaranteed to publish</i>. SLAs, tests and UIs must not assume the event is already consumable — the relay publishes 0.5–5 s later.</li>
+  <li style="padding-bottom:20px"><strong>The outbox table grows.</strong> Completed rows are kept here so demos can show them. The actuator module is a <b>purge-only</b> lever — <code class="i">DELETE /actuator/outbox/COMPLETED</code> → 204 — there is no GET to inspect records with.</li>
+  <li><strong>Deserialization is part of the contract.</strong> Without <code class="i">ErrorHandlingDeserializer</code>, an unparseable payload throws inside <code class="i">poll()</code> — before the listener, before any retry policy — and blocks the partition forever.</li>
+</ul></div><aside class="notes"><p>Each bullet is a "you'll hit this in week one" item.</p><ul><li>Record-id point pairs with slide 12 — the eventId was born inside the producer transaction, which is exactly why replays carry the same id.</li><li>The deserializer bullet foreshadows nothing — it's the one failure mode we did NOT live-demo (needs a raw producer writing garbage bytes; mention Conduktor can do it if someone asks).</li></ul></aside></section>
+<section class="slide" id="s26" data-num="26" data-sec="I" data-secname="Sharp edges"  data-until="2610" data-title="Pinned by tests"><div class="canvas"><div class="kicker">sharp edges · 3</div>
+<h2 class="t">Guarantees pinned by tests</h2>
+<table class="tbl" style="margin-top:20px">
+  <tr><th style="width:46%">property</th><th>test</th></tr>
+  <tr><td style="white-space:normal">rollback discards order + event <b>together</b></td><td><code class="i" style="font-size:17px">rollbackDiscardsTheOrderAndItsEventTogether</code></td></tr>
+  <tr><td style="white-space:normal">COMPLETED only <b>after</b> the broker ack</td><td><code class="i" style="font-size:17px">committedOrderWritesAnOutboxRecordAndIsEventuallyPublished</code></td></tr>
+  <tr><td style="white-space:normal">both producer paths share <b>one ordering key</b></td><td><code class="i" style="font-size:17px">bothProducerPathsShareTheSameOrderingKey</code></td></tr>
+  <tr><td style="white-space:normal">3 deliveries → <b>1 shipment</b></td><td><code class="i" style="font-size:17px">redeliveryOfTheSameEventCreatesOnlyOneShipment</code></td></tr>
+  <tr><td style="white-space:normal">a failed attempt leaves <b>no claim</b></td><td><code class="i" style="font-size:17px">aFailedAttemptLeavesNoClaimSoTheRetryIsTreatedAsFirstDelivery</code></td></tr>
+  <tr><td style="white-space:normal">fan-out: each consumer has its <b>own ledger</b></td><td><code class="i" style="font-size:17px">twoConsumersEachProcessTheSameEventOnce</code></td></tr>
+  <tr><td style="white-space:normal">claim outside a transaction = <b>loud failure</b></td><td><code class="i" style="font-size:17px">claimingWithoutATransactionIsRejected</code></td></tr>
+</table>
+<div class="foot">Testcontainers 2 — real Postgres, real Kafka. <b>None of these are provable with mocks.</b> The SpEL-drift test matters most: that failure is invisible at runtime, which is exactly why it is pinned.</div></div><aside class="notes"><p>Don't read the table — pick two rows:</p><ul><li><strong>Ordering-key drift test:</strong> the Java string and the SpEL string live in different modules; nothing but this test connects them. If they drift, creations and cancellations relay concurrently.</li><li><strong>No-claim-left-behind:</strong> the property demo 22 showed — here's the executable proof.</li></ul></aside></section>
+<section class="slide" id="s27" data-num="27" data-sec="J" data-secname="Close"        data-until="2850" data-title="When NOT to do this"><div class="canvas"><div class="kicker">close</div>
+<h2 class="t">When <span class="bad">not</span> to do this</h2>
+<div class="split" style="grid-template-columns:55fr 45fr;margin-top:20px">
+  <div>
+    <h3 style="font-size:23px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">skip the pattern when…</h3>
+    <ul class="list tight">
+      <li><strong>Consumers share the database</strong> — read the table. No transport, no problem to solve.</li>
+      <li><strong>Pure Kafka → Kafka pipelines</strong> — Kafka transactions / Streams EOS fit natively there.</li>
+      <li><strong>You can't touch the writing code</strong>, or need <i>every</i> table change — that's CDC / Debezium territory: zero app code, but infra weight and capture lag.</li>
+      <li><strong>Loss is genuinely acceptable</strong> — metrics, hints, cache warmers. At-most-once is cheaper.</li>
+      <li><strong>Hard latency budgets</strong> — the poller adds 0.5–5 s before the event is even sent.</li>
+    </ul>
+  </div>
+  <div class="card" style="align-self:start">
+    <h3 style="font-size:23px;color:var(--warn);margin-bottom:10px">the ops bill you accept</h3>
+    <ul class="list tight" style="--acc:var(--warn)">
+      <li>two ledgers to purge — outbox rows <i>and</i> inbox claims — plus a dedup window to size</li>
+      <li>two curves to watch: <b>backlog</b> = never reached Kafka · <b>lag</b> = reached it, consumer behind</li>
+      <li>confusing those two sends you debugging the <i>wrong service</i></li>
+    </ul>
+  </div>
+</div></div><aside class="notes"><p>The trust slide — recommending boundaries is what separates a pattern talk from a pitch.</p><p>Backlog vs lag deserves the extra beat: backlog is a producer-side metric from the outbox table; lag is a Kafka-side metric from the consumer group. Same symptom downstream ("nothing arrives"), opposite fixes.</p></aside></section>
+<section class="slide" id="s28" data-num="28" data-sec="J" data-secname="Close"        data-until="2850" data-title="POC → production"><div class="canvas"><div class="kicker">close · <span style="color:var(--faint);letter-spacing:normal;text-transform:none">skip if short on time</span></div>
+<h2 class="t">POC → production</h2>
+<ul class="list" style="margin-top:22px">
+  <li><code class="i">delete-completed-records: true</code> — or a scheduled purge. The actuator <code class="i">DELETE</code> is a manual lever, not a strategy.</li>
+  <li>Create <strong>every</strong> <code class="i">.DLT</code> topic up front (auto-create stays off) — and <strong>alert on the DLT listener</strong>; a dead-lettered event is an incident, not a log line.</li>
+  <li>Size <code class="i">demo.inbox.cleanup.retention</code> comfortably <strong>above topic retention</strong> — it is the dedup window.</li>
+  <li>Registry-backed contracts: swap <code class="i">JacksonJsonSerializer</code> → Confluent's <code class="i">KafkaJsonSchemaSerializer</code>. Outbox and inbox logic <b>unchanged</b>.</li>
+  <li>Dashboards that answer questions: backlog <span class="muted">(new + failed)</span>, publish p95/p99, duplicates suppressed, consumer lag.</li>
+  <li>Load-test the relay: instances claim outbox partitions and rebalance by heartbeat <span class="muted">(5 s beat / 30 s stale / 10 s rebalance here)</span> — verify failover before prod does it for you.</li>
+</ul></div><aside class="notes"><p><strong>Designated skip slide.</strong> If the timer is amber by slide 27, jump straight to takeaways — this list is in the repo README anyway.</p><p>If kept: the DLT-alert bullet ties back to the missing-topic confession on slide 24.</p></aside></section>
+<section class="slide" id="s29" data-num="29" data-sec="J" data-secname="Close"        data-until="2850" data-title="Takeaways"><div class="canvas"><div class="kicker">close</div>
+<h2 class="t">Takeaways</h2>
+<div style="display:flex;flex-direction:column;gap:26px;margin-top:40px">
+  <div style="display:flex;gap:26px;align-items:baseline">
+    <span style="font:800 46px var(--mono);color:var(--kafka)">1</span>
+    <p style="font-size:31px;line-height:1.4">Exactly-once <i>delivery</i> is a myth. <b>Effectively-once</b> is <span class="kaf">at-least-once</span> + <span class="cons">idempotency</span> — engineering, not magic.</p>
+  </div>
+  <div style="display:flex;gap:26px;align-items:baseline">
+    <span style="font:800 46px var(--mono);color:var(--producer)">2</span>
+    <p style="font-size:31px;line-height:1.4">One <b>local</b> transaction per side: the producer commits <span class="prod">row + event</span>, the consumer commits <span class="cons">claim + work</span>. The database referees every race.</p>
+  </div>
+  <div style="display:flex;gap:26px;align-items:baseline">
+    <span style="font:800 46px var(--mono);color:var(--consumer)">3</span>
+    <p style="font-size:31px;line-height:1.4">The sharp edges <i>are</i> the lesson: keys drift, DLTs go missing, retention is a semantic choice. <b>Re-read your own demos.</b></p>
+  </div>
+</div></div><aside class="notes"><p>Slow down here. One breath per line. These three sentences are what the room takes home.</p></aside></section>
+<section class="slide" id="s30" data-num="30" data-sec="J" data-secname="Close"        data-until="2850" data-title="Thanks / Q&amp;A"><div class="canvas"><div style="height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center">
+  <h1 style="font-size:72px;font-weight:800;letter-spacing:-.02em">Thank you.</h1>
+  <p style="font-size:30px;color:var(--muted);margin-top:22px">Questions — especially the "but what if…" kind.</p>
+  <div style="margin-top:52px;font-size:24px;line-height:2">
+    <div>repo · <code class="i">inbox-outbox-architecture</code> — README is the demo script</div>
+    <div>diagrams · <code class="i">docs/architecture.md</code> &nbsp;·&nbsp; this deck · <code class="i">docs/presentation.html</code></div>
+    <div style="margin-top:10px">Vlad Boboc</div>
+  </div>
+  <div style="position:absolute;left:64px;right:64px;bottom:40px;font-size:24px;color:var(--faint)"><span class="kaf">at-least-once</span> + <span class="cons">idempotent processing</span> = <b style="color:var(--text)">effectively-once</b></div>
+</div></div><aside class="notes"><p>Good likely questions to invite: "what about Kafka transactions?", "why not Debezium?", "what happens on relay failover mid-send?" — all covered: slides 6, 27, and 17 respectively. Overview (<code>o</code>) jumps back fast.</p></aside></section>
+<section class="slide" id="s31" data-num="31" data-sec="X" data-secname="Appendix"     data-until="0"    data-title="Pre-flight checklist"><div class="canvas"><div class="kicker">appendix — not part of the talk</div>
+<h2 class="t">Pre-flight checklist</h2>
+<div class="split" style="grid-template-columns:60fr 40fr;margin-top:16px">
+  <ul class="list tight" style="counter-reset:pf">
+    <li><code class="i">docker compose up -d --build</code> — 8 core containers. Wait for both app healthchecks: <code class="i">docker compose ps</code>.</li>
+    <li><code class="i">docker compose --profile metrics up -d</code> — Prometheus, Grafana, kafka-exporter.</li>
+    <li><code class="i">docker compose --profile ui up -d</code> — Conduktor. <strong>One profile at a time, let each settle</strong> — full stack ≈ 6 GB; starting everything at once has wedged the Docker daemon.</li>
+    <li>Warm-up: one <code class="i">POST /orders</code> + <code class="i">GET :8091/inbox</code> — JIT and first-poll latency out of the way.</li>
+    <li>Terminal: <code class="i">docker logs -f shipping-service</code>, big font. Deck parked at <b>15</b>.</li>
+    <li>Every demo slide's animation is the fallback — <kbd style="font-family:var(--mono)">r</kbd> replays it.</li>
+  </ul>
+  <div class="card">
+    <h3 style="font-size:22px;margin-bottom:12px;color:var(--kafka)">tabs to have open</h3>
+    <div style="font-family:var(--mono);font-size:19px;line-height:2;color:var(--muted)">
+      <div>Grafana <span class="warnc">:3000</span> → "Inbox / Outbox"</div>
+      <div style="font-size:16px;color:var(--faint)">admin / admin · refresh 5s</div>
+      <div>Conduktor <span class="warnc">:8080</span></div>
+      <div style="font-size:16px;color:var(--faint)">admin@demo.io / Admin123!</div>
+      <div>order-service <span class="warnc">:8090</span></div>
+      <div>shipping-service <span class="warnc">:8091</span></div>
+    </div>
+  </div>
+</div></div><aside class="notes"><p>Machine reality: ~7.5 GB free RAM. Broker heaps are capped at 512 MB each and every JVM container has a memory limit — but the bring-up order still matters. If <code>docker ps</code> hangs: check host memory and the WSL VM before blaming the build.</p></aside></section>
+<section class="slide" id="s32" data-num="32" data-sec="X" data-secname="Appendix"     data-until="0"    data-title="Library defaults vs. this POC"><div class="canvas"><div class="kicker">appendix — not part of the talk · q&amp;a ammo</div>
+<h2 class="t" style="font-size:42px">Library defaults vs. this POC</h2>
+<p class="sub" style="font-size:21px;margin-bottom:12px"><code class="i">namastack.outbox.*</code> — defaults read from the 1.9.0 core jar’s own configuration metadata. <b class="warnc">amber = overridden here</b> · <span class="muted">“same” = the yml restates the default so slide 14 can read one file aloud</span></p>
+<table class="tbl">
+  <tr><th>property</th><th>library default</th><th>this poc</th></tr>
+  <tr><td>polling.trigger</td><td>fixed <span class="muted">— every 2s</span></td><td><b class="warnc">adaptive</b></td></tr>
+  <tr><td>polling.batch-size</td><td>10</td><td><b class="warnc">20</b></td></tr>
+  <tr><td>polling.adaptive.min-interval · max-interval</td><td>1s · 8s</td><td><b class="warnc">500ms · 5s</b></td></tr>
+  <tr><td>retry.policy</td><td>exponential</td><td><span class="muted">same</span></td></tr>
+  <tr><td>retry.max-retries</td><td><b>3</b></td><td><b class="warnc">10</b></td></tr>
+  <tr><td>retry.exponential.initial-delay · multiplier</td><td>2s · ×2.0</td><td><span class="muted">same</span></td></tr>
+  <tr><td>retry.exponential.max-delay</td><td>1m</td><td><b class="warnc">30s</b></td></tr>
+  <tr><td>retry.jitter</td><td>0ms</td><td><b class="warnc">500ms</b></td></tr>
+  <tr><td>processing.stop-on-first-failure</td><td>true <span class="muted">— ordering by default</span></td><td><span class="muted">same</span></td></tr>
+  <tr><td>processing.delete-completed-records</td><td>false</td><td><span class="muted">same</span></td></tr>
+  <tr><td>instance.heartbeat · stale-timeout · rebalance</td><td>5s · 30s · 10s</td><td><span class="muted">same</span></td></tr>
+  <tr><td>kafka.default-topic</td><td>outbox-events</td><td><b class="warnc">domain-events</b></td></tr>
+</table>
+<div class="foot">The override that matters: <b>max-retries defaults to 3</b> — on defaults, a dead cluster turns rows <code class="i">FAILED</code> after ~14s of backoff (2+4+8), before the brokers even re-form quorum. Ten retries capped at 30s keep the relay trying for ≈3½ minutes.</div></div><aside class="notes"><p>Source: <code>META-INF/spring-configuration-metadata.json</code> inside <code>namastack-outbox-core-1.9.0.jar</code> — the artefact the build resolves, not the docs site. Property description confirms max-retries counts <em>retry</em> attempts after the first try.</p><p><strong>Q&amp;A ammo, "is 10 the default?":</strong> no — 3. The demo raises it because the kill-Kafka demo needs the relay still retrying after a multi-minute outage; on defaults the rows would give up while the brokers are still re-forming quorum (~20–30s), and slide 16’s "the recovery is the pattern" line would be a lie.</p><p>Worth saying if asked: stop-on-first-failure=true and delete-completed-records=false are <em>defaults</em> — the yml restates them for narration. And the routing fallback topic is a rename: outbox-events → domain-events.</p></aside></section>
+</main>
+
+<aside id="notes-panel" aria-label="speaker notes">
+  <div class="nh" id="np-head"></div>
+  <div class="nnext" id="np-next"></div>
+  <div class="nbody" id="np-body"></div>
+</aside>
+
+<div id="help">
+  <div class="hcard">
+    <h3>Keyboard</h3>
+    <table>
+      <tr><td><kbd>→</kbd> <kbd>space</kbd></td><td>next step / slide</td></tr>
+      <tr><td><kbd>←</kbd></td><td>previous step / slide</td></tr>
+      <tr><td><kbd>O</kbd> / <kbd>Esc</kbd></td><td>overview grid</td></tr>
+      <tr><td><kbd>S</kbd> / <kbd>N</kbd></td><td>speaker notes</td></tr>
+      <tr><td><kbd>R</kbd></td><td>replay animation on this slide</td></tr>
+      <tr><td><kbd>T</kbd> / <kbd>Shift+T</kbd></td><td>talk timer start·pause / reset</td></tr>
+      <tr><td><kbd>F</kbd></td><td>fullscreen</td></tr>
+      <tr><td><kbd>Home</kbd> / <kbd>End</kbd></td><td>first / last slide</td></tr>
+      <tr><td><kbd>?</kbd></td><td>this overlay</td></tr>
+    </table>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+const slides=$$('.slide'), N=slides.length;
+let cur=0, step=0, overview=false;
+
+const maxStep=i=>+(slides[i].dataset.steps||0);
+const fmt=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(Math.floor(s%60)).padStart(2,'0');
+
+/* ------------- router: location.hash is the source of truth -------- */
+function parseHash(){
+  const m=location.hash.match(/^#\/(\d+)(?:\/(\d+))?/);
+  let i=m?Math.min(Math.max(+m[1],1),N)-1:0;
+  let st=m&&m[2]?Math.min(+m[2],maxStep(i)):0;
+  return [i,st];
+}
+function go(i,st){
+  i=Math.min(Math.max(i,0),N-1); st=Math.min(Math.max(st||0,0),maxStep(i));
+  cur=i; step=st;
+  const h='#/'+(i+1)+(st?'/'+st:'');
+  if(location.hash!==h){try{location.hash=h;}catch(e){}}
+  render();
+}
+function next(){ if(step<maxStep(cur)) go(cur,step+1); else go(cur+1,0); }
+function prev(){ if(step>0) go(cur,step-1); else if(cur>0) go(cur-1,maxStep(cur-1)); }
+
+/* ---------------------------- step machine ------------------------- */
+function applySteps(sec,st){
+  sec.dataset.step=st;
+  sec.querySelectorAll('[data-show],[data-hide],[data-now]').forEach(el=>{
+    const sh=el.dataset.show!==undefined?+el.dataset.show:-1;
+    const hi=el.dataset.hide!==undefined?+el.dataset.hide:Infinity;
+    const on=st>=sh&&st<hi;
+    el.classList.toggle('on',on&&el.dataset.show!==undefined);
+    if(el.dataset.show===undefined&&st>=hi) el.classList.add('offh'); else el.classList.remove('offh');
+    if(el.dataset.now!==undefined){
+      const nows=el.dataset.now.split(',').map(Number);
+      el.classList.toggle('now',nows.includes(st));
+    }
+  });
+  const dots=sec.querySelector('.dots');
+  if(dots) Array.from(dots.children).forEach((d,k)=>d.classList.toggle('done',k<=st));
+}
+
+/* ------------------------------ render ----------------------------- */
+const animHooks={};
+animHooks.s16=(st)=>{
+  const fc=document.getElementById('a16-fc'),bl=document.getElementById('a16-bl');
+  if(!fc||!bl)return;
+  clearInterval(animHooks.s16._t);animHooks.s16._t=null;
+  if(st<0)return;
+  // failure_count is a database column: it only ever climbs. Never redraw it lower.
+  const fcShow=v=>{animHooks.s16._n=v;fc.textContent='failure_count: '+v;};
+  if(st<3)fcShow(0);
+  else if(st<5){let n=Math.max(animHooks.s16._n||0,1);fcShow(n);
+    animHooks.s16._t=setInterval(()=>{if(n<9){fcShow(++n);}},1500);}
+  else fcShow(Math.max(animHooks.s16._n||0,4));
+  bl.textContent='NEW: '+(st<2?0:(st<4?1:(st<6?3:0)));
+  if(st===6){let b=3;bl.textContent='NEW: 3';
+    animHooks.s16._t=setInterval(()=>{if(b>0){b--;bl.textContent='NEW: '+b;}else clearInterval(animHooks.s16._t);},700);}
+};
+animHooks.s22=(st)=>{
+  const el=document.getElementById('a22-att'),bo=document.getElementById('a22-bo');if(!el)return;
+  clearInterval(animHooks.s22._t);animHooks.s22._t=null;
+  if(st<0)return;
+  // The counter box is only 212 units wide: the verdict goes on the second line,
+  // not appended to the first, or it runs off the edge of the viewBox.
+  if(bo) bo.textContent = st>=6 ? 'retries exhausted → DLT' : 'FixedBackOff(1s, 3)';
+  if(st<2)el.textContent='attempt 0 / 4';
+  else if(st<4)el.textContent='attempt 1 / 4';
+  else if(st===4)el.textContent='attempt 2 / 4';
+  else if(st===5){let a=3;el.textContent='attempt 3 / 4';
+    animHooks.s22._t=setInterval(()=>{if(a<4){a++;el.textContent='attempt '+a+' / 4';}else clearInterval(animHooks.s22._t);},900);}
+  else el.textContent='attempt 4 / 4';
+};
+function render(){
+  slides.forEach((s,i)=>s.classList.toggle('current',i===cur));
+  applySteps(slides[cur],step);
+  for(const id in animHooks) animHooks[id](slides[cur].id===id?step:-1,slides[cur]);
+  const d=slides[cur].dataset;
+  $('#progress').style.width=(cur/(N-1)*100)+'%';
+  $('#seclabel').innerHTML='<b>'+d.secname+'</b>'+(+d.until?' · ends '+fmt(+d.until):'');
+  $('#counter').textContent=(cur+1)+' / '+N;
+  document.title=(cur+1)+'/'+N+' · '+d.title.replace(/<[^>]*>/g,'');
+  syncNotes();
+  if(overview) slides[cur].scrollIntoView({block:'nearest'});
+  timerDraw();
+}
+
+/* ------------------------------ notes ------------------------------ */
+function syncNotes(){
+  if(!document.body.classList.contains('notes-open'))return;
+  const s=slides[cur], ms=maxStep(cur);
+  $('#np-head').textContent='Slide '+(cur+1)+' / '+N+(ms?' — step '+step+'/'+ms:'');
+  $('#np-next').textContent=cur<N-1?('Next: '+slides[cur+1].dataset.title):'Last slide';
+  const nt=s.querySelector('.notes');
+  $('#np-body').innerHTML=nt?nt.innerHTML:'<p class="muted">No notes.</p>';
+}
+function toggleNotes(){document.body.classList.toggle('notes-open');syncNotes();}
+
+/* ----------------------------- overview ---------------------------- */
+function toggleOverview(){
+  overview=!overview;
+  document.body.classList.toggle('overview',overview);
+  if(overview) slides[cur].scrollIntoView({block:'center'});
+}
+
+/* ------------------------------ timer ------------------------------ */
+let tAcc=0,tStart=null,tInt=null;
+function timerToggle(){
+  if(tInt){tAcc+=Date.now()-tStart;clearInterval(tInt);tInt=null;}
+  else{tStart=Date.now();tInt=setInterval(timerDraw,1000);}
+  $('#timerbox').classList.add('onair');timerDraw();
+}
+function timerReset(){tAcc=0;if(tInt)tStart=Date.now();timerDraw();}
+function timerDraw(){
+  const el=$('#timerbox');if(!el.classList.contains('onair'))return;
+  const secs=(tAcc+(tInt?Date.now()-tStart:0))/1000;
+  el.textContent=fmt(secs)+(tInt?'':' ⏸');
+  const until=+slides[cur].dataset.until;
+  el.classList.remove('amber','red');
+  if(until){ if(secs>until+60)el.classList.add('red'); else if(secs>until)el.classList.add('amber'); }
+}
+
+/* ---------------------------- clipboard ---------------------------- */
+function copyCmd(btn){
+  const card=btn.closest('.cmd');
+  let pre=card.querySelector('pre[data-sh="'+(document.body.classList.contains('sh-ps')?'ps':'bash')+'"]')||card.querySelector('pre');
+  const txt=pre.innerText.replace(/^\s*#.*$/gm,'').trim();
+  const did=()=>{btn.classList.add('did');btn.textContent='Copied ✓';setTimeout(()=>{btn.classList.remove('did');btn.textContent='Copy';},1300);};
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(did).catch(()=>fallbackCopy(txt,did));}
+  else fallbackCopy(txt,did);
+}
+function fallbackCopy(txt,ok){
+  const ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.opacity='0';
+  document.body.appendChild(ta);ta.select();try{document.execCommand('copy');ok();}catch(e){}ta.remove();
+}
+function setShell(sh){
+  document.body.classList.toggle('sh-ps',sh==='ps');
+  try{localStorage.setItem('deck-shell',sh);}catch(e){}
+}
+
+/* ------------------------------ scale ------------------------------ */
+function rescale(){
+  const r=document.documentElement.style;
+  r.setProperty('--s',Math.min(innerWidth/1280,innerHeight/720));
+  r.setProperty('--ts',((innerWidth-48-70)/6)/1280);
+}
+
+/* ------------------------------ input ------------------------------ */
+document.addEventListener('keydown',e=>{
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  if(/^(INPUT|TEXTAREA)$/.test(e.target.tagName))return;
+  const k=e.key;
+  if(k==='ArrowRight'||k==='Right'||k===' '||k==='Spacebar'||k==='PageDown'){e.preventDefault();next();}
+  else if(k==='ArrowLeft'||k==='Left'||k==='PageUp'){e.preventDefault();prev();}
+  else if(k==='Home'){go(0,0);}
+  else if(k==='End'){go(N-1,0);}
+  else if(k==='o'||k==='O'){toggleOverview();}
+  else if(k==='Escape'){ if(document.body.classList.contains('help-open'))document.body.classList.remove('help-open'); else toggleOverview(); }
+  else if(k==='s'||k==='S'||k==='n'||k==='N'){toggleNotes();}
+  else if(k==='r'||k==='R'){go(cur,0);}
+  else if(k==='f'||k==='F'){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();}
+  else if(k==='t'){timerToggle();}
+  else if(k==='T'){timerReset();}
+  else if(k==='?'){document.body.classList.toggle('help-open');}
+  else if(k==='Enter'&&overview){toggleOverview();}
+});
+document.addEventListener('click',e=>{
+  const t=e.target;
+  if(t.closest('.copy')){copyCmd(t.closest('.copy'));return;}
+  if(t.closest('.tb')){setShell(t.closest('.tb').dataset.sh);return;}
+  if(t.closest('#help')){document.body.classList.remove('help-open');return;}
+  const j=t.closest('[data-jump]');if(j){go(cur,+j.dataset.jump);return;}
+  if(t.closest('a,button,.cmd,.tabs,#notes-panel,.hud,.dots'))return;
+  if(overview){const sl=t.closest('.slide');if(sl){go(slides.indexOf(sl),0);toggleOverview();}return;}
+  next();
+});
+$('#prevb').addEventListener('click',prev);
+$('#nextb').addEventListener('click',next);
+$('#timerbox').addEventListener('click',timerToggle);
+
+/* ------------------------- idle HUD dimming ------------------------ */
+let dimT=null;
+function undim(){document.body.classList.remove('dim');clearTimeout(dimT);dimT=setTimeout(()=>document.body.classList.add('dim'),3500);}
+['mousemove','keydown','click'].forEach(ev=>document.addEventListener(ev,undim,{passive:true}));
+
+/* ------------------------------- init ------------------------------ */
+slides.forEach((s,i)=>{
+  const ms=maxStep(i); if(!ms)return;
+  const d=document.createElement('div');d.className='dots';
+  for(let k=0;k<=ms;k++){const sp=document.createElement('span');sp.title='step '+k;
+    sp.addEventListener('click',()=>go(i,k));d.appendChild(sp);}
+  s.querySelector('.canvas').appendChild(d);
+});
+try{const sh=localStorage.getItem('deck-shell');if(sh)setShell(sh);}catch(e){}
+addEventListener('resize',rescale);
+addEventListener('hashchange',()=>{const p=parseHash();cur=p[0];step=p[1];render();});
+rescale();
+{const p=parseHash();cur=p[0];step=p[1];}
+try{if(!location.hash)history.replaceState(null,'','#/1');}catch(e){}
+render();
+undim();
+setTimeout(()=>{const h=$('#hint');if(h)h.classList.add('gone');},6500);
+document.addEventListener('dblclick',e=>e.preventDefault());
+</script>
+</body>
+</html>
