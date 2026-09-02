@@ -173,19 +173,20 @@ svg .fly-r,svg .fly-R,svg .fly-l,svg .fly-L,svg .fly-d,svg .pop{transform-box:fi
 #s07 ul.list li{font-size:24px;padding:8px 0 8px 34px}
 #s11 table.tbl td{font-size:21px;padding:7px 16px}
 #s11 table.tbl th{font-size:16px}
+#s15 ul.list li{font-size:21px;line-height:1.38;padding:7px 0 7px 34px}
 #s13 .cols p{margin-top:8px}
-#s16 ul.list.tight li{font-size:23px}
-#s21 ul.list li{font-size:25px}
-#s25 .card{padding:11px 20px}
-#s25 .card h3{font-size:22px;margin-bottom:4px}
-#s25 .card p{font-size:20px}
-#s26 ul.list li{font-size:23px;padding-bottom:12px;line-height:1.42}
-#s29 ul.list li{font-size:25px;padding:8px 0 8px 36px}
-#s32 ul.list li{font-size:23px}
-#s33 table.tbl td{font-size:18px;padding:4px 14px;line-height:1.3}
-#s33 table.tbl th{font-size:13px;padding:5px 14px}
-#s33 table.tbl td:first-child{font-family:var(--mono);font-size:16px;color:var(--muted)}
-#s33 .foot{font-size:19px;bottom:26px}
+#s17 ul.list.tight li{font-size:23px}
+#s22 ul.list li{font-size:25px}
+#s26 .card{padding:11px 20px}
+#s26 .card h3{font-size:22px;margin-bottom:4px}
+#s26 .card p{font-size:20px}
+#s27 ul.list li{font-size:23px;padding-bottom:12px;line-height:1.42}
+#s30 ul.list li{font-size:25px;padding:8px 0 8px 36px}
+#s33 ul.list li{font-size:23px}
+#s34 table.tbl td{font-size:18px;padding:4px 14px;line-height:1.3}
+#s34 table.tbl th{font-size:13px;padding:5px 14px}
+#s34 table.tbl td:first-child{font-family:var(--mono);font-size:16px;color:var(--muted)}
+#s34 .foot{font-size:19px;bottom:26px}
 .side .cmd .hdr{padding:5px 12px}
 .side .lbl{font-size:13px;padding:2px 8px}
 .side .what{font-size:16px}
@@ -196,16 +197,16 @@ svg .fly-r,svg .fly-R,svg .fly-l,svg .fly-L,svg .fly-d,svg .pop{transform-box:fi
 .side .xh{font-size:13px;margin-bottom:4px}
 #s11 .cluster li{font-size:22px}
 #s14 ul.list li{font-size:21px;padding:8px 0 8px 32px}
-#s15 ul.list li{font-size:21px;padding:8px 0 8px 32px}
-#s16 .cmd pre{font-size:19px}
-#s16 .expect samp{font-size:18px}
-#s16 ul.list.tight li{font-size:22px}
+#s16 ul.list li{font-size:21px;padding:8px 0 8px 32px}
+#s17 .cmd pre{font-size:19px}
+#s17 .expect samp{font-size:18px}
+#s17 ul.list.tight li{font-size:22px}
 #s14 figure.code pre{font-size:17px}
-#s15 figure.code pre{font-size:17px}
-#s20 figure.code pre{font-size:17px}
-#s20 .card p{font-size:19px !important;line-height:1.4 !important}
-#s20 .card{padding:14px 18px !important}
-#s21 ul.list li{font-size:24px;padding:8px 0 8px 34px}
+#s16 figure.code pre{font-size:17px}
+#s21 figure.code pre{font-size:17px}
+#s21 .card p{font-size:19px !important;line-height:1.4 !important}
+#s21 .card{padding:14px 18px !important}
+#s22 ul.list li{font-size:24px;padding:8px 0 8px 34px}
 
 /* ================================ HUD =============================== */
 .hud{position:fixed;z-index:40;font-family:var(--mono);transition:opacity .4s}
@@ -626,7 +627,7 @@ body.help-open #help{display:grid}
 <p class="swapcap" data-show="6" data-hide="7"><b>6.</b> Only then: <code class="i">NEW → COMPLETED</code>, in a <b>second, separate commit</b>. <span class="warnc">Remember this seam.</span></p>
 <p class="swapcap" data-show="7" data-hide="8"><b>7.</b> Kafka delivers to shipping-service.</p>
 <p class="swapcap" data-show="8" data-hide="9"><b>8.</b> Consumer transaction: <span class="cons">claim + shipment</span>, one commit.</p>
-<p class="swapcap" data-show="9"><b>9.</b> Offset commits last. So: a 201 means <b>durably recorded &amp; guaranteed to publish</b> — not <i>"already on the topic"</i>.</p></div><aside class="notes"><p>The centerpiece — 2½ min. Two beats deserve emphasis:</p><ul><li><strong>Beat 3:</strong> the request path ends before Kafka begins. That asymmetry is the whole pattern.</li><li><strong>Beat 6:</strong> the separate COMPLETED commit — plant "remember this seam"; slide 18 harvests it (crash between 5 and 6 = duplicate).</li></ul><p>Beat 9's sentence is lifted from the OrderController javadoc — it returns on the library-realities slide.</p></aside></section>
+<p class="swapcap" data-show="9"><b>9.</b> Offset commits last. So: a 201 means <b>durably recorded &amp; guaranteed to publish</b> — not <i>"already on the topic"</i>.</p></div><aside class="notes"><p>The centerpiece — 2½ min. Two beats deserve emphasis:</p><ul><li><strong>Beat 3:</strong> the request path ends before Kafka begins. That asymmetry is the whole pattern.</li><li><strong>Beat 6:</strong> the separate COMPLETED commit — plant "remember this seam"; slide 19 harvests it (crash between 5 and 6 = duplicate).</li></ul><p>Beat 9's sentence is lifted from the OrderController javadoc — it returns on the library-realities slide.</p></aside></section>
 <section class="slide" id="s10" data-num="10"  data-sec="D" data-secname="The POC"      data-until="990"  data-title="The POC"><div class="canvas"><div class="kicker">the poc</div>
 <h2 class="t">Two services, one broker cluster, zero shared state</h2>
 <svg viewBox="0 0 1160 470" style="width:100%;margin-top:12px">
@@ -704,7 +705,7 @@ body.help-open #help{display:grid}
       <li><code class="i">domain-events</code> — routing fallback, unconsumed</li>
     </ul>
   </div>
-</div></div><aside class="notes"><p>30 seconds on the left column, the right one is the part that matters for the guarantees.</p><ul><li>Boot pinned to 4.1.1 because that's what namastack 1.9.0's own BOM builds against — split-BOM misery otherwise.</li><li>min.isr=2 + acks=all is the durability floor the outbox relay leans on later (slide 15).</li><li>domain-events comes back on the routing slide: unrouted payloads get published, not stranded.</li></ul></aside></section>
+</div></div><aside class="notes"><p>30 seconds on the left column, the right one is the part that matters for the guarantees.</p><ul><li>Boot pinned to 4.1.1 because that's what namastack 1.9.0's own BOM builds against — split-BOM misery otherwise.</li><li>min.isr=2 + acks=all is the durability floor the outbox relay leans on later (slide 16).</li><li>domain-events comes back on the routing slide: unrouted payloads get published, not stranded.</li></ul></aside></section>
 <section class="slide" id="s12" data-num="12" data-sec="E" data-secname="Producer"     data-until="1350" data-steps="4" data-title="One transaction, two writes"><div class="canvas"><div class="kicker">producer</div>
 <h2 class="t">One transaction, two writes</h2>
 <figure class="code" style="margin-top:10px">
@@ -757,7 +758,7 @@ body.help-open #help{display:grid}
     <p style="font-size:21px;color:var(--muted);margin-top:12px;line-height:1.4">namastack's multicaster intercepts the Spring event and persists it <b>inside the caller's transaction</b>.</p>
   </div>
 </div>
-<div class="foot"><b>Same ordering key, two languages:</b> a Java concatenation on the left, a SpEL string on the right — in a <i>different module</i>. Nothing but a test connects them <span class="muted">(that test appears on slide 27)</span>.</div></div><aside class="notes"><p>Trade-off framing: explicit = visible dependency; declarative = clean domain, implicit persistence. The POC uses both on purpose — create is explicit, cancel is declarative.</p><p>The footer is the setup for the drift confession (slide 25) and the pinning test (slide 27). A bare <code>#this.orderId</code> would put cancellations in a different ordering group — a cancellation could overtake its own creation.</p></aside></section>
+<div class="foot"><b>Same ordering key, two languages:</b> a Java concatenation on the left, a SpEL string on the right — in a <i>different module</i>. Nothing but a test connects them <span class="muted">(that test appears on slide 28)</span>.</div></div><aside class="notes"><p>Trade-off framing: explicit = visible dependency; declarative = clean domain, implicit persistence. The POC uses both on purpose — create is explicit, cancel is declarative.</p><p>The footer is the setup for the drift confession (slide 26) and the pinning test (slide 28). A bare <code>#this.orderId</code> would put cancellations in a different ordering group — a cancellation could overtake its own creation.</p></aside></section>
 <section class="slide" id="s14" data-num="14" data-sec="E" data-secname="Producer"     data-until="1350" data-title="Routing"><div class="canvas"><div class="kicker">producer</div>
 <h2 class="t">Routing — payload type → topic, key, headers</h2>
 <div class="split" style="grid-template-columns:60fr 40fr;margin-top:16px">
@@ -787,7 +788,35 @@ body.help-open #help{display:grid}
     <li>Declaring this bean <b>replaces</b> the default route-everything-to-one-topic behaviour.</li>
   </ul>
 </div></div><aside class="notes"><p>Casts trimmed for the slide (real code casts payload). If asked about Kotlin interop: builder route/defaults expose both Function1 and Consumer overloads — an expression lambda is ambiguous from Java, a block-bodied lambda resolves to Consumer. The braces are load-bearing.</p><p>Tracing point is a nice observability beat: schedule-time capture is the only way the eventual Kafka record correlates with the HTTP request that caused it.</p></aside></section>
-<section class="slide" id="s15" data-num="15" data-sec="E" data-secname="Producer"     data-until="1350" data-title="The relay"><div class="canvas"><div class="kicker">producer</div>
+<section class="slide" id="s15" data-num="15" data-sec="E" data-secname="Producer"     data-until="1350" data-title="Wire format"><div class="canvas"><div class="kicker">producer</div>
+<h2 class="t">Wire format — Avro through Schema Registry</h2>
+<div class="split" style="grid-template-columns:56fr 44fr;margin-top:16px">
+  <figure class="code">
+    <figcaption><span class="dotc" style="background:var(--producer)"></span>three places, condensed <span style="margin-left:auto;color:var(--faint)">branch avro-contracts</span></figcaption>
+    <pre class="sm"><span class="ln"><span class="tk-cm"># order-service · application.yml</span></span>
+<span class="ln"><span class="tk-mth">spring.kafka</span>:</span>
+<span class="ln">  <span class="tk-mth">properties</span>:</span>
+<span class="ln">    <span class="tk-mth">schema.registry.url</span>: <span class="tk-str">http://schema-registry:8081</span></span>
+<span class="ln">  <span class="tk-mth">producer</span>:</span>
+<span class="ln">    <span class="tk-mth">value-serializer</span>: <span class="tk-type">KafkaAvroSerializer</span></span>
+<span class="ln"><span class="tk-mth">namastack.outbox.kafka.enable-json</span>: <span class="tk-kw">false</span></span>
+<span class="ln"></span>
+<span class="ln"><span class="tk-cm">// KafkaOutboxRoutingConfig.java · every route</span></span>
+<span class="ln">route.<span class="tk-mth">mapping</span>((p, meta) -&gt; <span class="tk-type">AvroEventMapper</span>.<span class="tk-mth">toAvro</span>(p));</span>
+<span class="ln"></span>
+<span class="ln"><span class="tk-cm">// OrderEventListener.java</span></span>
+<span class="ln"><span class="tk-kw">@Payload</span> com.demo.events.avro.<span class="tk-type">OrderCreated</span> payload</span>
+<span class="ln"><span class="tk-type">OrderCreated</span> event = <span class="tk-type">AvroEventMapper</span>.<span class="tk-mth">fromAvro</span>(payload);</span></pre>
+  </figure>
+  <ul class="list" style="font-size:21px">
+    <li><strong>Two shapes, on purpose.</strong> The Java record in code and in <code class="i">outbox_record</code>; the class generated from the <code class="i">.avsc</code> on the wire. One mapper knows both.</li>
+    <li><strong>Converted at relay time.</strong> A pure function of the stored row — retries and replays are <b>byte-identical</b>. Subjects self-register: <code class="i">orders.v1-value</code> …</li>
+    <li><strong>The schema name is the contract.</strong> No <code class="i">__TypeId__</code> header, no trusted-packages list.</li>
+    <li><strong>Two traps.</strong> Avro 1.12 allow-lists even <i>your own</i> classes (<code class="i">AvroTrust</code>). Decimal scale is exact: <code class="i">149.9</code> rejected, <code class="i">149.90</code> fine.</li>
+  </ul>
+</div>
+<div class="foot"><code class="i">master</code> keeps plain Jackson 3 JSON · same outbox, same inbox · write-up in <code class="i">docs/avro-schema-registry.md</code></div></div><aside class="notes"><p>The point to land: the outbox table did <strong>not</strong> change. Rows still store the domain record as JSON keyed by FQCN; the Avro conversion is a step of the relay, not of scheduling. That is why the duplicate demo still works — same stored row, same bytes.</p><p>If asked why not make the generated classes the domain events: generated code cannot carry <code>@OutboxEvent</code>, Jackson would need mix-ins to persist a SpecificRecordBase, and every record_type in the table would change.</p><p>Consumer side not on the slide: <code>ErrorHandlingDeserializer → KafkaAvroDeserializer</code> with <code>specific.avro.reader</code>. The dead-letter producer needs a <code>DelegatingByTypeSerializer</code> — the recoverer publishes raw bytes when deserialization failed and an Avro record when the listener threw, and one Avro serializer cannot take both.</p><p>Tests run against Confluent's <code>mock://</code> registry — an in-JVM client shared by every serde with the same scope — so no registry container in Testcontainers.</p><p>Q&amp;A ammo on the allow-list: CVE-2024-47561 hardening in Avro 1.12.1; the JVM-flag alternative is <code>-Dorg.apache.avro.SERIALIZABLE_PACKAGES</code>, rejected because every JVM would have to remember it.</p></aside></section>
+<section class="slide" id="s16" data-num="16" data-sec="E" data-secname="Producer"     data-until="1350" data-title="The relay"><div class="canvas"><div class="kicker">producer</div>
 <h2 class="t">The relay — how the event actually leaves</h2>
 <div class="split" style="grid-template-columns:50fr 50fr;margin-top:18px">
   <figure class="code">
@@ -812,8 +841,8 @@ body.help-open #help{display:grid}
     <li><strong>Fail fast when Kafka is gone.</strong> <code class="i">max.block.ms=8000</code> hands the record back to the poller instead of parking a relay thread for two minutes.</li>
     <li><strong>Give up loudly.</strong> After 10 exponential retries the row goes <code class="i">FAILED</code> — its own line on the dashboard.</li>
   </ul>
-</div></div><aside class="notes"><p>This slide earns the Kafka-down demo: fail-fast + exponential retry is why that demo is snappy instead of a two-minute hang.</p><p>delete-completed-records=false is a demo choice — rows stay visible in psql. Production wants true or a purge job (slide 29).</p><p>Adaptive polling: tightens to 500ms under load, backs off to 5s idle — mention latency cost once, it returns on the when-not slide.</p><p><strong>If asked "are those the defaults?"</strong> — no: trigger (fixed→adaptive), batch (10→20), retries (3→10), cap (1m→30s) and jitter (0→500ms) are overrides; stop-on-first-failure, delete-completed-records=false, the 2s initial delay and the ×2 multiplier ARE the defaults, restated so this slide reads from one file. Full table: appendix, last slide.</p></aside></section>
-<section class="slide" id="s16" data-num="16" data-sec="F" data-secname="Demo I"       data-until="1680" data-title="Demo — happy path"><div class="canvas"><div class="kicker">demo · first contact</div>
+</div></div><aside class="notes"><p>This slide earns the Kafka-down demo: fail-fast + exponential retry is why that demo is snappy instead of a two-minute hang.</p><p>delete-completed-records=false is a demo choice — rows stay visible in psql. Production wants true or a purge job (slide 30).</p><p>Adaptive polling: tightens to 500ms under load, backs off to 5s idle — mention latency cost once, it returns on the when-not slide.</p><p><strong>If asked "are those the defaults?"</strong> — no: trigger (fixed→adaptive), batch (10→20), retries (3→10), cap (1m→30s) and jitter (0→500ms) are overrides; stop-on-first-failure, delete-completed-records=false, the 2s initial delay and the ×2 multiplier ARE the defaults, restated so this slide reads from one file. Full table: appendix, last slide.</p></aside></section>
+<section class="slide" id="s17" data-num="17" data-sec="F" data-secname="Demo I"       data-until="1680" data-title="Demo — happy path"><div class="canvas"><div class="kicker">demo · first contact</div>
 <h2 class="t">Happy path — one order, end to end</h2>
 <div class="split" style="grid-template-columns:56fr 44fr;margin-top:18px">
   <div>
@@ -844,7 +873,7 @@ body.help-open #help{display:grid}
     </div>
   </div>
 </div></div><aside class="notes"><p>Deliberately boring — that's the point. Say it: "this is the demo every talk shows; the next four are the ones they don't."</p><p><strong>Keep the ORD-XXXXXXXX visible</strong> (or copy it) — the duplicate and cancel demos reuse it. If Conduktor is up, one quick look at the message: key, eventId header, traceId header, Avro body decoded through the registry schema (<code>orders.v1-value</code>).</p></aside></section>
-<section class="slide" id="s17" data-num="17" data-sec="F" data-secname="Demo I"       data-until="1680" data-steps="7" data-title="Demo — kill Kafka"><div class="canvas"><div class="kicker">demo · the core proof</div>
+<section class="slide" id="s18" data-num="18" data-sec="F" data-secname="Demo I"       data-until="1680" data-steps="7" data-title="Demo — kill Kafka"><div class="canvas"><div class="kicker">demo · the core proof</div>
 <h2 class="t" style="font-size:42px">Kill Kafka. Keep taking orders.</h2>
 <div class="split" style="margin-top:10px">
   <div style="position:relative">
@@ -925,8 +954,8 @@ docker compose start kafka-1 kafka-2 kafka-3</pre>
       <samp>③ order-ORD-… | NEW | climbing</samp>
     </div>
   </div>
-</div></div><aside class="notes"><p><strong>Timing:</strong> brokers take ~20–30 s to re-form quorum after start — run the animation (or talk through the Grafana panel) to fill that gap. The relay's next attempt lands within its current backoff (≤30 s).</p><p>Fail-fast configs from slide 15 are why live 2 returns in ~8 s worst case (max.block.ms) instead of two minutes. If Docker misbehaves entirely: the animation IS the demo — say so, nobody minds.</p><p>Check <code>GET :8091/inbox</code> afterwards: the CUST-9 order shipped. Zero manual steps.</p></aside></section>
-<section class="slide" id="s18" data-num="18" data-sec="G" data-secname="Inbox"        data-until="1980" data-title="The gap that remains"><div class="canvas"><div class="kicker">inbox</div>
+</div></div><aside class="notes"><p><strong>Timing:</strong> brokers take ~20–30 s to re-form quorum after start — run the animation (or talk through the Grafana panel) to fill that gap. The relay's next attempt lands within its current backoff (≤30 s).</p><p>Fail-fast configs from slide 16 are why live 2 returns in ~8 s worst case (max.block.ms) instead of two minutes. If Docker misbehaves entirely: the animation IS the demo — say so, nobody minds.</p><p>Check <code>GET :8091/inbox</code> afterwards: the CUST-9 order shipped. Zero manual steps.</p></aside></section>
+<section class="slide" id="s19" data-num="19" data-sec="G" data-secname="Inbox"        data-until="1980" data-title="The gap that remains"><div class="canvas"><div class="kicker">inbox</div>
 <h2 class="t">The gap that remains — <span class="warnc">two seams no one can close</span></h2>
 <div class="cols" style="margin-top:20px;gap:26px">
   <div class="card" style="border-top:3px solid var(--producer);padding:22px 26px">
@@ -949,7 +978,7 @@ docker compose start kafka-1 kafka-2 kafka-3</pre>
   </div>
 </div>
 <div class="banner g" style="margin-top:26px;text-align:center">Both seams produce the <b>same artifact — a duplicate</b>. So one mechanism absorbs both →</div></div><aside class="notes"><p>This slide legitimizes the inbox. Neither seam is a bug: closing them needs an atomic commit across Postgres and Kafka — XA again, which doesn't exist here (the InboxGuard javadoc says exactly this).</p><p>Symmetry is the beauty: totally different failure points, identical downstream symptom, one cure. The green banner hands the mic to the ON CONFLICT slide.</p></aside></section>
-<section class="slide" id="s19" data-num="19" data-sec="G" data-secname="Inbox"        data-until="1980" data-title="One statement, zero races"><div class="canvas"><div class="kicker">inbox</div>
+<section class="slide" id="s20" data-num="20" data-sec="G" data-secname="Inbox"        data-until="1980" data-title="One statement, zero races"><div class="canvas"><div class="kicker">inbox</div>
 <h2 class="t">The whole inbox is one statement</h2>
 <figure class="code" style="margin-top:18px">
   <figcaption><span class="dotc" style="background:var(--consumer)"></span>InboxMessageRepository.java — returns <b>1</b> = first delivery · <b>0</b> = already handled</figcaption>
@@ -967,7 +996,7 @@ docker compose start kafka-1 kafka-2 kafka-3</pre>
     <p style="font-size:23px;line-height:1.45"><b>PK is <code class="i">(event_id, consumer)</code></b> — not <code class="i">event_id</code> alone. Several consumers fan out from one topic; each keeps its own ledger, so shipping processing an event never starves analytics of it.</p>
   </div>
 </div></div><aside class="notes"><p>The single most important slide of the inbox half. Read the SQL aloud — it takes ten seconds and it's the entire mechanism.</p><p>"The database is the referee": unique-constraint arbitration is the only dedup that survives concurrency, crashes, and rebalances with no extra coordination. Native query because JPQL has no upsert.</p></aside></section>
-<section class="slide" id="s20" data-num="20" data-sec="G" data-secname="Inbox"        data-until="1980" data-title="Claim, then act"><div class="canvas"><div class="kicker">inbox</div>
+<section class="slide" id="s21" data-num="21" data-sec="G" data-secname="Inbox"        data-until="1980" data-title="Claim, then act"><div class="canvas"><div class="kicker">inbox</div>
 <h2 class="t">Consumer shape — claim, then act</h2>
 <div class="split" style="grid-template-columns:62fr 38fr;margin-top:16px">
   <figure class="code">
@@ -1001,7 +1030,7 @@ docker compose start kafka-1 kafka-2 kafka-3</pre>
     </div>
   </div>
 </div></div><aside class="notes"><p>The pattern in one sentence: <strong>claim, then act, in one transaction</strong> — first delivery inserts+works+commits; duplicate returns early (offset commits, no second shipment); failure rolls back both (redelivery is a genuine first attempt).</p><p>Those three sentences ARE the three demos coming up. Say them here, prove them next.</p></aside></section>
-<section class="slide" id="s21" data-num="21" data-sec="G" data-secname="Inbox"        data-until="1980" data-title="Why hand-rolled"><div class="canvas"><div class="kicker">inbox</div>
+<section class="slide" id="s22" data-num="22" data-sec="G" data-secname="Inbox"        data-until="1980" data-title="Why hand-rolled"><div class="canvas"><div class="kicker">inbox</div>
 <h2 class="t">Why this module is hand-rolled</h2>
 <div class="split" style="grid-template-columns:58fr 42fr;margin-top:22px">
   <ul class="list">
@@ -1023,7 +1052,7 @@ docker compose start kafka-1 kafka-2 kafka-3</pre>
     <p style="font-size:20px;color:var(--faint);margin-top:14px">auditable in one sitting</p>
   </div>
 </div></div><aside class="notes"><p>Anticipates the obvious question "why didn't you just add a dependency". Answer: I looked — namastack's org has exactly one library repo, and it's the outbox.</p><p>The @EntityScan point is a genuine Boot gotcha worth 20 seconds: a library declaring it silently breaks the application's entity discovery. The consuming app owns the declaration.</p></aside></section>
-<section class="slide" id="s22" data-num="22" data-sec="H" data-secname="Demo II"      data-until="2400" data-steps="6" data-title="Demo — same event, twice"><div class="canvas"><div class="kicker">demo · duplicates</div>
+<section class="slide" id="s23" data-num="23" data-sec="H" data-secname="Demo II"      data-until="2400" data-steps="6" data-title="Demo — same event, twice"><div class="canvas"><div class="kicker">demo · duplicates</div>
 <h2 class="t" style="font-size:42px">Deliver the same event twice</h2>
 <div class="split" style="margin-top:10px">
   <div style="position:relative">
@@ -1100,7 +1129,7 @@ irm http://localhost:8091/inbox
     </div>
   </div>
 </div></div><aside class="notes"><p>Use the ORD id from the happy-path demo. The replay is honest: <code>created_event_id</code> stored on the order row lets the demo re-schedule a <strong>byte-identical</strong> event through the real outbox → Kafka → listener path — no side channel.</p><p>This simulates the one duplicate the outbox can't rule out: relay sends, crashes before marking COMPLETED, resends on recovery.</p><p>Grafana: "Duplicates suppressed vs. events processed" — the orange line moves. Panel description calls it "the point of the whole exercise".</p></aside></section>
-<section class="slide" id="s23" data-num="23" data-sec="H" data-secname="Demo II"      data-until="2400" data-steps="8" data-title="Demo — poison → DLT"><div class="canvas"><div class="kicker">demo · poison pill</div>
+<section class="slide" id="s24" data-num="24" data-sec="H" data-secname="Demo II"      data-until="2400" data-steps="8" data-title="Demo — poison → DLT"><div class="canvas"><div class="kicker">demo · poison pill</div>
 <h2 class="t" style="font-size:42px">Poison → retries → DLT — <span class="cons">no claim left behind</span></h2>
 <div class="split" style="margin-top:10px">
   <div style="position:relative">
@@ -1178,7 +1207,7 @@ irm http://localhost:8091/inbox</pre>
     </div>
   </div>
 </div></div><aside class="notes"><p>The subtle beat is step 3 and it's easy to rush: the claim was INSERTED (1 row!) and then <strong>un</strong>-inserted by the rollback. MANDATORY propagation is what makes this impossible to get wrong — a self-committing claim here would have silently dropped the event.</p><p>Timeline is fast: 4 attempts × 1 s ≈ 4–5 s total before the DLT lines appear. Have the logs already tailing.</p><p><strong>Log levels, so the tail doesn't surprise you:</strong> the four retry lines are <code>WARN</code> — <code>KafkaConsumerConfig</code> calls <code>handler.setLogLevel(WARN)</code>, since an attempt that will be retried is not yet an error. Only the two DLT lines are <code>ERROR</code>, and both are ours: the recoverer's <code>"routing to DLT"</code> and the DLT listener's <code>"DLT: key=…"</code>. Don't grep for ERROR during the retries — there won't be any.</p><p>Conduktor: show the record sitting on orders.v1.DLT, same partition as the original.</p></aside></section>
-<section class="slide" id="s24" data-num="24" data-sec="H" data-secname="Demo II"      data-until="2400" data-steps="5" data-title="Demo — ordering"><div class="canvas"><div class="kicker">demo · ordering</div>
+<section class="slide" id="s25" data-num="25" data-sec="H" data-secname="Demo II"      data-until="2400" data-steps="5" data-title="Demo — ordering"><div class="canvas"><div class="kicker">demo · ordering</div>
 <h2 class="t" style="font-size:42px">One key, two API styles, two topics</h2>
 <div class="split" style="margin-top:10px">
   <div style="position:relative">
@@ -1243,8 +1272,8 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
       <samp>…OrderCreated | COMPLETED&nbsp;&nbsp;then&nbsp;&nbsp;…OrderCancelled | COMPLETED</samp>
     </div>
   </div>
-</div></div><aside class="notes"><p>The most senior slide of the demo block: it shows a <em>limit</em>. Per-key ordering is real on each topic-partition; the create/cancel pair still crosses topics, so the consumer tolerates early cancels instead of pretending.</p><p>If someone asks "why two topics then?" — fair question: one topic with an event-type header is a legitimate alternative; this POC keeps them split to make the limitation visible.</p><p>The SpEL key on the annotation reproducing the Java concatenation is what makes row 1 possible — drift test pins it (slide 27).</p></aside></section>
-<section class="slide" id="s25" data-num="25" data-sec="I" data-secname="Sharp edges"  data-until="2670" data-title="Sharp edges I shipped"><div class="canvas"><div class="kicker">sharp edges · 1</div>
+</div></div><aside class="notes"><p>The most senior slide of the demo block: it shows a <em>limit</em>. Per-key ordering is real on each topic-partition; the create/cancel pair still crosses topics, so the consumer tolerates early cancels instead of pretending.</p><p>If someone asks "why two topics then?" — fair question: one topic with an event-type header is a legitimate alternative; this POC keeps them split to make the limitation visible.</p><p>The SpEL key on the annotation reproducing the Java concatenation is what makes row 1 possible — drift test pins it (slide 28).</p></aside></section>
+<section class="slide" id="s26" data-num="26" data-sec="I" data-secname="Sharp edges"  data-until="2670" data-title="Sharp edges I shipped"><div class="canvas"><div class="kicker">sharp edges · 1</div>
 <h2 class="t">Bugs I shipped in my own demo</h2>
 <div style="display:flex;flex-direction:column;gap:11px;margin-top:14px">
   <div class="card" style="border-left:4px solid var(--warn)">
@@ -1261,7 +1290,7 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
   </div>
 </div>
 <div class="foot">All three were found by re-reading, not by tests. What the tests <i>do</i> pin — two slides ahead.</div></div><aside class="notes"><p>The credibility slide — deliver it as confessions, not caveats. Each one is "claimed / actual / who gets burned".</p><ul><li>Key drift: if someone opens Conduktor during demo 1 they can SEE the key is <code>ORD-…</code> while the outbox row says <code>order-ORD-…</code>. Own it before they spot it.</li><li>Missing DLT: only the created-order poison path is demoed; a poisoned cancel would break the recoverer. That's a config review item, not a code fix.</li></ul></aside></section>
-<section class="slide" id="s26" data-num="26" data-sec="I" data-secname="Sharp edges"  data-until="2670" data-title="Library realities"><div class="canvas"><div class="kicker">sharp edges · 2</div>
+<section class="slide" id="s27" data-num="27" data-sec="I" data-secname="Sharp edges"  data-until="2670" data-title="Library realities"><div class="canvas"><div class="kicker">sharp edges · 2</div>
 <h2 class="t">Library realities</h2>
 <ul class="list" style="margin-top:24px">
   <li style="padding-bottom:20px"><strong>The metadata hides the record id.</strong> <code class="i">OutboxRecordMetadata</code> exposes key, context, failureCount, attempt — <b>not</b> the outbox record id. So the idempotency key must live <strong>in the payload</strong>. <span class="ok">Better anyway:</span> the event id becomes part of the published contract instead of leaking infrastructure state.</li>
@@ -1269,7 +1298,7 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
   <li style="padding-bottom:20px"><strong>The outbox table grows.</strong> Completed rows are kept here so demos can show them. The actuator module is a <b>purge-only</b> lever — <code class="i">DELETE /actuator/outbox/COMPLETED</code> → 204 — there is no GET to inspect records with.</li>
   <li><strong>Deserialization is part of the contract.</strong> Without <code class="i">ErrorHandlingDeserializer</code>, an unparseable payload throws inside <code class="i">poll()</code> — before the listener, before any retry policy — and blocks the partition forever.</li>
 </ul></div><aside class="notes"><p>Each bullet is a "you'll hit this in week one" item.</p><ul><li>Record-id point pairs with slide 13 — the eventId was born inside the producer transaction, which is exactly why replays carry the same id.</li><li>The deserializer bullet foreshadows nothing — it's the one failure mode we did NOT live-demo (needs a raw producer writing garbage bytes; mention Conduktor can do it if someone asks).</li></ul></aside></section>
-<section class="slide" id="s27" data-num="27" data-sec="I" data-secname="Sharp edges"  data-until="2670" data-title="Pinned by tests"><div class="canvas"><div class="kicker">sharp edges · 3</div>
+<section class="slide" id="s28" data-num="28" data-sec="I" data-secname="Sharp edges"  data-until="2670" data-title="Pinned by tests"><div class="canvas"><div class="kicker">sharp edges · 3</div>
 <h2 class="t">Guarantees pinned by tests</h2>
 <table class="tbl" style="margin-top:20px">
   <tr><th style="width:46%">property</th><th>test</th></tr>
@@ -1282,7 +1311,7 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
   <tr><td style="white-space:normal">claim outside a transaction = <b>loud failure</b></td><td><code class="i" style="font-size:17px">claimingWithoutATransactionIsRejected</code></td></tr>
 </table>
 <div class="foot">Testcontainers 2 — real Postgres, real Kafka. <b>None of these are provable with mocks.</b> The SpEL-drift test matters most: that failure is invisible at runtime, which is exactly why it is pinned.</div></div><aside class="notes"><p>Don't read the table — pick two rows:</p><ul><li><strong>Ordering-key drift test:</strong> the Java string and the SpEL string live in different modules; nothing but this test connects them. If they drift, creations and cancellations relay concurrently.</li><li><strong>No-claim-left-behind:</strong> the property demo 23 showed — here's the executable proof.</li></ul></aside></section>
-<section class="slide" id="s28" data-num="28" data-sec="J" data-secname="Close"        data-until="2910" data-title="When NOT to do this"><div class="canvas"><div class="kicker">close</div>
+<section class="slide" id="s29" data-num="29" data-sec="J" data-secname="Close"        data-until="2910" data-title="When NOT to do this"><div class="canvas"><div class="kicker">close</div>
 <h2 class="t">When <span class="bad">not</span> to do this</h2>
 <div class="split" style="grid-template-columns:55fr 45fr;margin-top:20px">
   <div>
@@ -1304,7 +1333,7 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
     </ul>
   </div>
 </div></div><aside class="notes"><p>The trust slide — recommending boundaries is what separates a pattern talk from a pitch.</p><p>Backlog vs lag deserves the extra beat: backlog is a producer-side metric from the outbox table; lag is a Kafka-side metric from the consumer group. Same symptom downstream ("nothing arrives"), opposite fixes.</p></aside></section>
-<section class="slide" id="s29" data-num="29" data-sec="J" data-secname="Close"        data-until="2910" data-title="POC → production"><div class="canvas"><div class="kicker">close · <span style="color:var(--faint);letter-spacing:normal;text-transform:none">skip if short on time</span></div>
+<section class="slide" id="s30" data-num="30" data-sec="J" data-secname="Close"        data-until="2910" data-title="POC → production"><div class="canvas"><div class="kicker">close · <span style="color:var(--faint);letter-spacing:normal;text-transform:none">skip if short on time</span></div>
 <h2 class="t">POC → production</h2>
 <ul class="list" style="margin-top:22px">
   <li><code class="i">delete-completed-records: true</code> — or a scheduled purge. The actuator <code class="i">DELETE</code> is a manual lever, not a strategy.</li>
@@ -1313,8 +1342,8 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
   <li>Registry-backed contracts are in: Avro via <code class="i">KafkaAvroSerializer</code>, converted at relay time in <code class="i">route.mapping</code>. Next step: register schemas from CI, <code class="i">auto.register.schemas=false</code>.</li>
   <li>Dashboards that answer questions: backlog <span class="muted">(new + failed)</span>, publish p95/p99, duplicates suppressed, consumer lag.</li>
   <li>Load-test the relay: instances claim outbox partitions and rebalance by heartbeat <span class="muted">(5 s beat / 30 s stale / 10 s rebalance here)</span> — verify failover before prod does it for you.</li>
-</ul></div><aside class="notes"><p><strong>Designated skip slide.</strong> If the timer is amber by slide 28, jump straight to takeaways — this list is in the repo README anyway.</p><p>If kept: the DLT-alert bullet ties back to the missing-topic confession on slide 25.</p></aside></section>
-<section class="slide" id="s30" data-num="30" data-sec="J" data-secname="Close"        data-until="2910" data-title="Takeaways"><div class="canvas"><div class="kicker">close</div>
+</ul></div><aside class="notes"><p><strong>Designated skip slide.</strong> If the timer is amber by slide 29, jump straight to takeaways — this list is in the repo README anyway.</p><p>If kept: the DLT-alert bullet ties back to the missing-topic confession on slide 26.</p></aside></section>
+<section class="slide" id="s31" data-num="31" data-sec="J" data-secname="Close"        data-until="2910" data-title="Takeaways"><div class="canvas"><div class="kicker">close</div>
 <h2 class="t">Takeaways</h2>
 <div style="display:flex;flex-direction:column;gap:26px;margin-top:40px">
   <div style="display:flex;gap:26px;align-items:baseline">
@@ -1330,7 +1359,7 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
     <p style="font-size:31px;line-height:1.4">The sharp edges <i>are</i> the lesson: keys drift, DLTs go missing, retention is a semantic choice. <b>Re-read your own demos.</b></p>
   </div>
 </div></div><aside class="notes"><p>Slow down here. One breath per line. These three sentences are what the room takes home.</p></aside></section>
-<section class="slide" id="s31" data-num="31" data-sec="J" data-secname="Close"        data-until="2910" data-title="Thanks / Q&amp;A"><div class="canvas"><div style="height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center">
+<section class="slide" id="s32" data-num="32" data-sec="J" data-secname="Close"        data-until="2910" data-title="Thanks / Q&amp;A"><div class="canvas"><div style="height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center">
   <h1 style="font-size:72px;font-weight:800;letter-spacing:-.02em">Thank you.</h1>
   <p style="font-size:30px;color:var(--muted);margin-top:22px">Questions — especially the "but what if…" kind.</p>
   <div style="margin-top:52px;font-size:24px;line-height:2">
@@ -1340,7 +1369,7 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
   </div>
   <div style="position:absolute;left:64px;right:64px;bottom:40px;font-size:24px;color:var(--faint)"><span class="kaf">at-least-once</span> + <span class="cons">idempotent processing</span> = <b style="color:var(--text)">effectively-once</b></div>
 </div></div><aside class="notes"><p>Good likely questions to invite: "what about Kafka transactions?", "why not Debezium?", "what happens on relay failover mid-send?" — all covered: slides 7, 28, and 18 respectively. Overview (<code>o</code>) jumps back fast.</p></aside></section>
-<section class="slide" id="s32" data-num="32" data-sec="X" data-secname="Appendix"     data-until="0"    data-title="Pre-flight checklist"><div class="canvas"><div class="kicker">appendix — not part of the talk</div>
+<section class="slide" id="s33" data-num="33" data-sec="X" data-secname="Appendix"     data-until="0"    data-title="Pre-flight checklist"><div class="canvas"><div class="kicker">appendix — not part of the talk</div>
 <h2 class="t">Pre-flight checklist</h2>
 <div class="split" style="grid-template-columns:60fr 40fr;margin-top:16px">
   <ul class="list tight" style="counter-reset:pf">
@@ -1363,9 +1392,9 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
     </div>
   </div>
 </div></div><aside class="notes"><p>Machine reality: ~7.5 GB free RAM. Broker heaps are capped at 512 MB each and every JVM container has a memory limit — but the bring-up order still matters. If <code>docker ps</code> hangs: check host memory and the WSL VM before blaming the build.</p></aside></section>
-<section class="slide" id="s33" data-num="33" data-sec="X" data-secname="Appendix"     data-until="0"    data-title="Library defaults vs. this POC"><div class="canvas"><div class="kicker">appendix — not part of the talk · q&amp;a ammo</div>
+<section class="slide" id="s34" data-num="34" data-sec="X" data-secname="Appendix"     data-until="0"    data-title="Library defaults vs. this POC"><div class="canvas"><div class="kicker">appendix — not part of the talk · q&amp;a ammo</div>
 <h2 class="t" style="font-size:42px">Library defaults vs. this POC</h2>
-<p class="sub" style="font-size:21px;margin-bottom:12px"><code class="i">namastack.outbox.*</code> — defaults read from the 1.9.0 core jar’s own configuration metadata. <b class="warnc">amber = overridden here</b> · <span class="muted">“same” = the yml restates the default so slide 15 can read one file aloud</span></p>
+<p class="sub" style="font-size:21px;margin-bottom:12px"><code class="i">namastack.outbox.*</code> — defaults read from the 1.9.0 core jar’s own configuration metadata. <b class="warnc">amber = overridden here</b> · <span class="muted">“same” = the yml restates the default so slide 16 can read one file aloud</span></p>
 <table class="tbl">
   <tr><th>property</th><th>library default</th><th>this poc</th></tr>
   <tr><td>polling.trigger</td><td>fixed <span class="muted">— every 2s</span></td><td><b class="warnc">adaptive</b></td></tr>
@@ -1382,7 +1411,7 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
   <tr><td>kafka.default-topic</td><td>outbox-events</td><td><b class="warnc">domain-events</b></td></tr>
   <tr><td>kafka.enable-json</td><td>true <span class="muted">— injects JacksonJsonSerializer</span></td><td><b class="warnc">false</b> <span class="muted">— Confluent Avro instead</span></td></tr>
 </table>
-<div class="foot">The override that matters: <b>max-retries defaults to 3</b> — on defaults, a dead cluster turns rows <code class="i">FAILED</code> after ~14s of backoff (2+4+8), before the brokers even re-form quorum. Ten retries capped at 30s keep the relay trying for ≈3½ minutes.</div></div><aside class="notes"><p>Source: <code>META-INF/spring-configuration-metadata.json</code> inside <code>namastack-outbox-core-1.9.0.jar</code> — the artefact the build resolves, not the docs site. Property description confirms max-retries counts <em>retry</em> attempts after the first try.</p><p><strong>Q&amp;A ammo, "is 10 the default?":</strong> no — 3. The demo raises it because the kill-Kafka demo needs the relay still retrying after a multi-minute outage; on defaults the rows would give up while the brokers are still re-forming quorum (~20–30s), and slide 17’s "the recovery is the pattern" line would be a lie.</p><p>Worth saying if asked: stop-on-first-failure=true and delete-completed-records=false are <em>defaults</em> — the yml restates them for narration. And the routing fallback topic is a rename: outbox-events → domain-events.</p></aside></section>
+<div class="foot">The override that matters: <b>max-retries defaults to 3</b> — on defaults, a dead cluster turns rows <code class="i">FAILED</code> after ~14s of backoff (2+4+8), before the brokers even re-form quorum. Ten retries capped at 30s keep the relay trying for ≈3½ minutes.</div></div><aside class="notes"><p>Source: <code>META-INF/spring-configuration-metadata.json</code> inside <code>namastack-outbox-core-1.9.0.jar</code> — the artefact the build resolves, not the docs site. Property description confirms max-retries counts <em>retry</em> attempts after the first try.</p><p><strong>Q&amp;A ammo, "is 10 the default?":</strong> no — 3. The demo raises it because the kill-Kafka demo needs the relay still retrying after a multi-minute outage; on defaults the rows would give up while the brokers are still re-forming quorum (~20–30s), and slide 18’s "the recovery is the pattern" line would be a lie.</p><p>Worth saying if asked: stop-on-first-failure=true and delete-completed-records=false are <em>defaults</em> — the yml restates them for narration. And the routing fallback topic is a rename: outbox-events → domain-events.</p></aside></section>
 </main>
 
 <aside id="notes-panel" aria-label="speaker notes">
