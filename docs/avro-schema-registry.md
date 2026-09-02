@@ -166,8 +166,26 @@ very first record fails with
 `SecurityException: Forbidden com.demo.events.avro.OrderCreated! This class is not trusted…`.
 [`AvroTrust.trustEventSchemas()`](../common-events/src/main/java/com/demo/events/avro/AvroTrust.java)
 extends the global predicate with the two generated classes and is called from a `static {}` block
-in `KafkaConsumerConfig` and `KafkaOutboxRoutingConfig` and from the mapper test. The alternative is
-`-Dorg.apache.avro.SERIALIZABLE_PACKAGES=com.demo.events.avro` on every JVM.
+in `KafkaConsumerConfig` and from the mapper test. The alternative is
+`-Dorg.apache.avro.SERIALIZABLE_PACKAGES=com.demo.events.avro` on every affected JVM.
+
+*Who is affected.* The check fires on the schema-to-class lookup, and only there. A producer is
+unaffected: `KafkaAvroSerializer` works from the record instance it is handed and never resolves a
+class by name, which is why order-service does not call `AvroTrust` at all. A consumer using
+`GenericRecord` instead of the specific reader is also unaffected — `GenericRecord` does not
+instantiate your generated class at all, so there is no class-name lookup to trust or block.
+
+So the practical rule: any JVM that deserializes *into your generated classes* — real consumers with
+`specific.avro.reader=true`, but also test runners, local dev setups, and anything else that exercises
+that deserialization path (integration tests, a Kafka Streams app reading its own topic, a REST proxy
+configured for specific Avro, and so on) — needs either the JVM flag or the equivalent code
+(`AvroTrust.trustEventSchemas()`, or whatever you land on) applied to it. A JVM that only produces,
+or only reads generically, does not.
+
+That narrows the "every JVM must carry the flag" objection above: it is specifically every JVM that
+runs specific-reader deserialization, which in practice is the consumer fleet plus its test suite,
+not the whole system. Doing it in code still wins for the POC because the consumer and its tests are
+exactly the JVMs that are easiest to forget a flag on.
 
 **Decimal scale is exact, not rounded.** `Conversions.DecimalConversion` throws when the
 `BigDecimal`'s scale differs from the schema's. Normalise before building the record (the mapper
