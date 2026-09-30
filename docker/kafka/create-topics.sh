@@ -25,10 +25,11 @@ for _ in $(seq 1 30); do
 done
 
 echo "creating topics..."
-create orders.v1            3
-create orders.v1.cancelled  3
-create orders.v1.DLT        3
-create domain-events        3
+# One topic for every order event, so an order's creation and cancellation share a partition and
+# are consumed in order. The consumer dead-letters to <topic>.DLT, so each topic it reads needs one.
+create orders.v1      3
+create orders.v1.DLT  3
+create domain-events  3
 
 echo
 kafka-topics --bootstrap-server "$BOOTSTRAP" --list

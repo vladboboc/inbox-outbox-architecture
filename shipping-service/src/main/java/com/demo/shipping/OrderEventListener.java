@@ -2,24 +2,29 @@ package com.demo.shipping;
 
 import com.demo.events.OrderCancelled;
 import com.demo.events.OrderCreated;
+import com.demo.events.OrderEvent;
 import com.demo.inbox.InboxGuard;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.KafkaHeaders;
-// org.apache.kafka.common.header.Header is referenced fully qualified below: importing it would
-// clash with the @Header annotation used on the listener parameters.
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Function;
 
 /**
- * Consumes order events with an inbox guard in front of every handler.
+ * Consumes order events with an inbox guard in front of the handler.
+ *
+ * <p>Creations and cancellations share one topic and one key per order, so both events for an
+ * order sit on the same partition and arrive in the order they were published: a cancellation
+ * cannot overtake its own creation. One listener therefore handles both types.
  *
  * <p>The shape is always the same: claim, then act, in one transaction.
  *
@@ -52,13 +57,13 @@ public class OrderEventListener {
     }
 
     @KafkaListener(
-            id = "orders-created",
+            id = "orders",
             topics = "orders.v1",
             groupId = CONSUMER,
             containerFactory = "kafkaListenerContainerFactory")
     @Transactional
-    public void onOrderCreated(
-            @Payload OrderCreated event,
+    public void onOrderEvent(
+            @Payload OrderEvent event,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
             @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
             @Header(KafkaHeaders.OFFSET) long offset) {
@@ -66,25 +71,12 @@ public class OrderEventListener {
         if (!inboxGuard.claim(event.eventId(), CONSUMER, topic, partition, offset)) {
             return;
         }
-        shipmentService.createShipment(event);
-    }
-
-    @KafkaListener(
-            id = "orders-cancelled",
-            topics = "orders.v1.cancelled",
-            groupId = CONSUMER,
-            containerFactory = "kafkaListenerContainerFactory")
-    @Transactional
-    public void onOrderCancelled(
-            @Payload OrderCancelled event,
-            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
-            @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
-            @Header(KafkaHeaders.OFFSET) long offset) {
-
-        if (!inboxGuard.claim(event.eventId(), CONSUMER, topic, partition, offset)) {
-            return;
+        // Exhaustive over the sealed OrderEvent: a new event type does not compile until it is
+        // handled here.
+        switch (event) {
+            case OrderCreated created -> shipmentService.createShipment(created);
+            case OrderCancelled cancelled -> shipmentService.cancelShipment(cancelled);
         }
-        shipmentService.cancelShipment(event);
     }
 
     /**
@@ -111,24 +103,34 @@ public class OrderEventListener {
         log.error(
                 "DLT: key={} originalTopic={} originalPartition={} originalOffset={} cause={}: {}",
                 record.key(),
-                header(record, KafkaHeaders.DLT_ORIGINAL_TOPIC),
-                header(record, KafkaHeaders.DLT_ORIGINAL_PARTITION),
-                header(record, KafkaHeaders.DLT_ORIGINAL_OFFSET),
-                header(record, KafkaHeaders.DLT_EXCEPTION_CAUSE_FQCN),
-                header(record, KafkaHeaders.DLT_EXCEPTION_MESSAGE));
+                header(record, KafkaHeaders.DLT_ORIGINAL_TOPIC, OrderEventListener::utf8),
+                header(record, KafkaHeaders.DLT_ORIGINAL_PARTITION, ByteBuffer::getInt),
+                header(record, KafkaHeaders.DLT_ORIGINAL_OFFSET, ByteBuffer::getLong),
+                header(record, KafkaHeaders.DLT_EXCEPTION_CAUSE_FQCN, OrderEventListener::utf8),
+                header(record, KafkaHeaders.DLT_EXCEPTION_MESSAGE, OrderEventListener::utf8));
     }
 
-    private static String header(ConsumerRecord<?, ?> record, String name) {
-        org.apache.kafka.common.header.Header header = record.headers().lastHeader(name);
+    /**
+     * Decodes one {@code kafka_dlt-*} header. The recoverer writes the original partition as a
+     * big-endian int, the original offset as a big-endian long and everything else as UTF-8, so
+     * each caller names its decoding rather than guessing from the value's length.
+     */
+    private static Object header(
+            ConsumerRecord<?, ?> record, String name, Function<ByteBuffer, ?> decoder) {
+        var header = record.headers().lastHeader(name);
         if (header == null || header.value() == null) {
             return "n/a";
         }
-        byte[] value = header.value();
-        // The recoverer writes ints and longs as big-endian binary, everything else as UTF-8.
-        return switch (value.length) {
-            case 4 -> String.valueOf(ByteBuffer.wrap(value).getInt());
-            case 8 -> String.valueOf(ByteBuffer.wrap(value).getLong());
-            default -> new String(value, StandardCharsets.UTF_8);
-        };
+        try {
+            return decoder.apply(ByteBuffer.wrap(header.value()));
+        } catch (BufferUnderflowException notFromTheRecoverer) {
+            // Too short for its type, so some other producer wrote it. This listener only logs,
+            // and a throw here would send the record through retries and dead-lettering itself.
+            return "malformed";
+        }
+    }
+
+    private static String utf8(ByteBuffer value) {
+        return StandardCharsets.UTF_8.decode(value).toString();
     }
 }

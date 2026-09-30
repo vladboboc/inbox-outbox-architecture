@@ -55,7 +55,10 @@ spring:
     listener:
       ack-mode: record
       concurrency: 3
-      # Surfaces the topic/partition/offset headers the inbox records for diagnostics.
+      # Continues the trace from each record's traceparent header, so these logs carry the trace id
+      # of the order request, and times every invocation as a spring.kafka.listener metric. Not
+      # what supplies the topic/partition/offset headers the inbox records -- Spring Kafka always
+      # provides those.
       observation-enabled: true
     producer:
       # Used only by the dead-letter publisher.

@@ -94,6 +94,19 @@
             <artifactId>micrometer-registry-prometheus</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!-- Tracing. Micrometer Tracing already arrives through namastack-outbox-observability, but
+             only as an API: without a bridge there is no real tracer, so no trace ids reach the logs
+             or cross the outbox. Brave with no reporter keeps spans in-process; they exist to
+             correlate the request, the relay and the consumer, not to be exported. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-tracing-brave</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-brave</artifactId>
+            <scope>runtime</scope>
+        </dependency>
 
         <!-- ===== test ===== -->
         <dependency>

@@ -1,14 +1,18 @@
 package com.demo.shipping;
 
+import com.demo.events.OrderCancelled;
 import com.demo.events.OrderCreated;
 import com.demo.inbox.InboxGuard;
 import com.demo.inbox.InboxMessageRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -17,7 +21,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,10 +46,12 @@ class InboxDeduplicationTest {
     private static final String CONSUMER = "shipping-service";
 
     @Autowired InboxGuard inboxGuard;
+    @Autowired OrderEventListener orderEventListener;
     @Autowired ShipmentService shipmentService;
     @Autowired ShipmentRepository shipmentRepository;
     @Autowired InboxMessageRepository inboxMessageRepository;
     @Autowired TransactionTemplate transactionTemplate;
+    @Autowired MeterRegistry meterRegistry;
 
     @BeforeEach
     void reset() {
@@ -67,6 +72,14 @@ class InboxDeduplicationTest {
                         }));
     }
 
+    /** Only the claim, in its own transaction, recorded under {@code consumer}. */
+    private boolean claimAs(OrderCreated event, String consumer) {
+        return Boolean.TRUE.equals(
+                transactionTemplate.execute(
+                        status ->
+                                inboxGuard.claim(event.eventId(), consumer, "orders.v1", 0, 1L)));
+    }
+
     @Test
     void redeliveryOfTheSameEventCreatesOnlyOneShipment() {
         OrderCreated event = OrderCreated.of("ORD-1", "CUST-1", new BigDecimal("99.99"));
@@ -82,11 +95,9 @@ class InboxDeduplicationTest {
     @Test
     void distinctEventsForTheSameOrderAreBothProcessed() {
         // Guards against over-eager deduplication: the key is the event, not the aggregate.
+        // Each of() call mints a fresh eventId.
         OrderCreated first = OrderCreated.of("ORD-2", "CUST-1", new BigDecimal("10.00"));
-        OrderCreated second =
-                new OrderCreated(
-                        UUID.randomUUID().toString(), "ORD-2", "CUST-1", new BigDecimal("20.00"),
-                        Instant.now());
+        OrderCreated second = OrderCreated.of("ORD-2", "CUST-1", new BigDecimal("20.00"));
 
         assertThat(handle(first)).isTrue();
         assertThat(handle(second)).isTrue();
@@ -108,6 +119,27 @@ class InboxDeduplicationTest {
     }
 
     @Test
+    void onlyAttemptsThatCommitAreCountedAsProcessed() {
+        // Counters are not transactional. A poison event's claim is inserted and then rolled back;
+        // counting at claim time would report work that never happened, once per retry.
+        double before = processedCount();
+
+        handle(OrderCreated.of("ORD-6", "CUST-1", new BigDecimal("3.00")));
+        OrderCreated poison =
+                OrderCreated.of("ORD-7", ShipmentService.POISON_CUSTOMER_ID, new BigDecimal("1.00"));
+        assertThatThrownBy(() -> handle(poison)).isInstanceOf(IllegalStateException.class);
+
+        assertThat(processedCount() - before).isEqualTo(1.0);
+    }
+
+    private double processedCount() {
+        return meterRegistry.find("inbox.messages.processed").tag("consumer", CONSUMER).counters()
+                .stream()
+                .mapToDouble(Counter::count)
+                .sum();
+    }
+
+    @Test
     void twoConsumersEachProcessTheSameEventOnce() {
         // Fan-out: the ledger is per consumer, so a second consumer is not starved by the first.
         OrderCreated event = OrderCreated.of("ORD-4", "CUST-1", new BigDecimal("5.00"));
@@ -117,11 +149,20 @@ class InboxDeduplicationTest {
         assertThat(claimAs(event, "analytics-service")).isFalse();
     }
 
-    private boolean claimAs(OrderCreated event, String consumer) {
-        return Boolean.TRUE.equals(
-                transactionTemplate.execute(
-                        status ->
-                                inboxGuard.claim(event.eventId(), consumer, "orders.v1", 0, 1L)));
+    @Test
+    void aCancellationFollowingItsCreationCancelsTheShipment() {
+        // Through the real listener, which takes both event types from the one topic. They share
+        // a partition, so the cancellation always follows its creation, as it does here.
+        OrderCreated created = OrderCreated.of("ORD-5", "CUST-1", new BigDecimal("7.00"));
+        OrderCancelled cancelled = OrderCancelled.of("ORD-5", "changed mind");
+
+        orderEventListener.onOrderEvent(created, "orders.v1", 0, 10L);
+        orderEventListener.onOrderEvent(cancelled, "orders.v1", 0, 11L);
+
+        assertThat(shipmentRepository.findByOrderId("ORD-5"))
+                .singleElement()
+                .extracting(Shipment::getStatus)
+                .isEqualTo(Shipment.Status.CANCELLED);
     }
 
     @Test
@@ -132,6 +173,6 @@ class InboxDeduplicationTest {
                         () ->
                                 inboxGuard.claim(
                                         UUID.randomUUID().toString(), CONSUMER, "orders.v1", 0, 1L))
-                .isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
+                .isInstanceOf(IllegalTransactionStateException.class);
     }
 }

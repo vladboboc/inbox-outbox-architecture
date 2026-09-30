@@ -1,11 +1,8 @@
-# Datasource is supplied by @ServiceConnection from the Postgres container.
+# Test-only overrides of application.yml. The datasource is supplied by @ServiceConnection from
+# the Postgres container.
 spring:
-  jpa:
-    hibernate:
-      ddl-auto: validate
-  flyway:
-    enabled: true
   kafka:
+    # Deliberately unreachable: no test in this module talks to a broker.
     bootstrap-servers: localhost:1
     listener:
       # These tests exercise the claim-plus-write transaction directly. Starting the listener
@@ -20,5 +17,4 @@ demo:
 
 logging:
   level:
-    com.demo: DEBUG
     org.testcontainers: WARN

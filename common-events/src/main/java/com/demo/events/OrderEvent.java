@@ -19,7 +19,10 @@ public sealed interface OrderEvent permits OrderCreated, OrderCancelled {
     /** Stable, globally unique id for this event. The inbox idempotency key. */
     String eventId();
 
-    /** Aggregate id. Also used as the outbox record key, which pins ordering and partitioning. */
+    /**
+     * Aggregate id. The outbox ordering key ({@code "order-" + orderId}) and the Kafka message key
+     * ({@code orderId}) are both derived from it, which pins ordering and partitioning per order.
+     */
     String orderId();
 
     /** When the business fact occurred, not when it was published. */

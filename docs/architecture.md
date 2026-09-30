@@ -30,7 +30,7 @@ sequenceDiagram
     OS-->>C: 201 Created
 
     Note over OS: relay polls, adaptive 0.5s to 5s
-    OS->>K: send to orders.v1, key = order-{id}
+    OS->>K: send to orders.v1, key = orderId
     K-->>OS: ack — acks=all, min.insync.replicas=2
     OS->>ODB: UPDATE outbox_record to COMPLETED
 
@@ -57,10 +57,10 @@ Why each step matters:
   part of the same commit.
 - **Step 4** returns before publication. A `201` means *durably recorded and guaranteed to publish*,
   not *already on the topic*.
-- **Step 7** blocks on the broker acknowledgement, so with `acks=all` and an ISR floor of 2 the ack
-  means genuinely replicated.
-- **Step 9** is a *second* commit, and that is the unavoidable gap — see the note that follows it.
-- **Steps 11–13** close that gap. The claim and the business write share one transaction, so the
+- **Steps 5–6** are a blocking send: the relay waits for the broker acknowledgement, so with
+  `acks=all` and an ISR floor of 2 the ack means genuinely replicated.
+- **Step 7** is a *second* commit, and that is the unavoidable gap — see the note that follows it.
+- **Steps 9–11** close that gap. The claim and the business write share one transaction, so the
   system can never be in a state where work happened but was not recorded as having happened.
 
 The idempotency key is `eventId`, carried **in the payload** and generated inside the producer's
@@ -144,7 +144,7 @@ flowchart TB
 
     OS --> ODB
     SS --> SDB
-    OS -->|"orders.v1<br/>orders.v1.cancelled"| kafka
+    OS -->|"orders.v1"| kafka
     kafka --> SS
     SS -->|"orders.v1.DLT"| kafka
 
@@ -178,7 +178,7 @@ The metrics behind the Grafana dashboard, and which side of the system each one 
 | Publish latency | `outbox_record_process_seconds_bucket` | Is the relay slow? |
 | Consumer lag | `kafka_consumergroup_lag` | Is the consumer behind? |
 | Duplicates suppressed | `inbox_messages_duplicate_total` | Is the inbox earning its keep? |
-| Events processed | `inbox_messages_processed_total` | Throughput of real work |
+| Events processed | `inbox_messages_processed_total` | Throughput of real work (counted on commit, so a rolled-back attempt never shows) |
 
 Backlog and lag answer genuinely different questions, which is why both are on the dashboard: a
 backlog means the event never reached Kafka, while lag means it did and the consumer has not caught

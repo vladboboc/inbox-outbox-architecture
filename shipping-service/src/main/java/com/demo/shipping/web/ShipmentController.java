@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 /** Read-only views that make the demo verifiable without opening a psql session. */
 @RestController
@@ -63,6 +62,8 @@ public class ShipmentController {
         }
     }
 
+    public record InboxView(long totalClaims, long shipments, List<InboxEntryResponse> recent) {}
+
     @GetMapping("/shipments")
     public List<ShipmentResponse> shipments() {
         return shipmentService.findAll().stream().map(ShipmentResponse::from).toList();
@@ -73,15 +74,12 @@ public class ShipmentController {
      * inbox working: replaying an event leaves both counts unchanged.
      */
     @GetMapping("/inbox")
-    public Map<String, Object> inbox() {
-        List<InboxEntryResponse> entries =
+    public InboxView inbox() {
+        List<InboxEntryResponse> recent =
                 inboxMessageRepository.findTop100ByOrderByReceivedAtDesc().stream()
                         .map(InboxEntryResponse::from)
                         .toList();
 
-        return Map.of(
-                "totalClaims", inboxMessageRepository.count(),
-                "shipments", shipmentService.findAll().size(),
-                "recent", entries);
+        return new InboxView(inboxMessageRepository.count(), shipmentService.count(), recent);
     }
 }

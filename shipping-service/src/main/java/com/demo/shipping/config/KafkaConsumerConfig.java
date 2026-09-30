@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.kafka.autoconfigure.ConcurrentKafkaListenerContainerFactoryConfigurer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.KafkaException;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaOperations;
@@ -18,8 +19,9 @@ import org.springframework.util.backoff.FixedBackOff;
  *
  * <p>Failures get three quick retries; if the cause is transient (a brief database blip) the event
  * succeeds without operator involvement. If it persists, the record is routed to
- * {@code orders.v1.DLT} and the consumer moves on rather than blocking the partition — a genuinely
- * bad event must not stall every well-formed event queued behind it.
+ * {@code <topic>.DLT} — {@code orders.v1.DLT} for every order event — and the consumer moves on
+ * rather than blocking the partition: a genuinely bad event must not stall every well-formed event
+ * queued behind it.
  *
  * <p>Because each attempt runs in its own transaction and each rollback undoes the inbox claim,
  * these retries are indistinguishable from first attempts. Only a committed attempt leaves a claim.
@@ -46,11 +48,12 @@ public class KafkaConsumerConfig {
                             return new TopicPartition(record.topic() + ".DLT", record.partition());
                         });
 
+        // Three retries one second apart: four attempts in all before the record is dead-lettered.
         DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(1_000L, 3L));
 
         // A missing event id can never succeed on retry, so don't waste attempts on it.
         handler.addNotRetryableExceptions(IllegalArgumentException.class);
-        handler.setLogLevel(org.springframework.kafka.KafkaException.Level.WARN);
+        handler.setLogLevel(KafkaException.Level.WARN);
         return handler;
     }
 

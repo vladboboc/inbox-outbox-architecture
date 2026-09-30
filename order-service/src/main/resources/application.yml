@@ -48,6 +48,11 @@ spring:
         # services are not coupled through __TypeId__ FQCNs.
         spring.json.type.mapping: >-
           orderCreated:com.demo.events.OrderCreated,orderCancelled:com.demo.events.OrderCancelled
+    template:
+      # The KafkaTemplate's observation writes a W3C traceparent header onto each record. The relay
+      # sends from inside the trace namastack restored from the outbox row, so that header carries
+      # the trace of the HTTP request that scheduled the event.
+      observation-enabled: true
 
 namastack:
   outbox:
@@ -83,7 +88,8 @@ namastack:
       # Contributes JacksonJsonSerializer / JacksonJsonDeserializer (Jackson 3).
       # This is plain JSON, not Confluent's schema-registry wire format.
       enable-json: true
-      default-topic: domain-events
+      # No default-topic here: it only feeds namastack's built-in routing, which
+      # KafkaOutboxRoutingConfig replaces. Topics, including the fallback, are set there.
 
 server:
   port: 8090
@@ -110,9 +116,11 @@ management:
         outbox.record.schedule: true
       slo:
         outbox.record.process: 50ms,200ms,1s,5s
-  observations:
-    annotations:
-      enabled: true
+  tracing:
+    sampling:
+      # Trace every request. No exporter is configured, so spans stay in-process: the ids exist to
+      # correlate logs and Kafka records, not to feed a tracing backend.
+      probability: 1.0
 
 logging:
   level:

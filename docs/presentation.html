@@ -182,6 +182,8 @@ svg .fly-r,svg .fly-R,svg .fly-l,svg .fly-L,svg .fly-d,svg .pop{transform-box:fi
 #s26 ul.list li{font-size:23px;padding-bottom:12px;line-height:1.42}
 #s29 ul.list li{font-size:25px;padding:8px 0 8px 36px}
 #s32 ul.list li{font-size:23px}
+#s27 table.tbl td{font-size:20px;padding:5px 16px}
+#s27 table.tbl tr.fix td:first-child{border-left:3px solid var(--warn)}
 #s33 table.tbl td{font-size:18px;padding:4px 14px;line-height:1.3}
 #s33 table.tbl th{font-size:13px;padding:5px 14px}
 #s33 table.tbl td:first-child{font-family:var(--mono);font-size:16px;color:var(--muted)}
@@ -200,6 +202,9 @@ svg .fly-r,svg .fly-R,svg .fly-l,svg .fly-L,svg .fly-d,svg .pop{transform-box:fi
 #s16 .cmd pre{font-size:19px}
 #s16 .expect samp{font-size:18px}
 #s16 ul.list.tight li{font-size:22px}
+/* s17's PowerShell request (iwr … .StatusCode) wraps two lines more than curl -i: at 17px it pushed
+   the expect box off the slide. 16px gives it the same bottom margin the bash script has. */
+#s17 .side .cmd pre[data-sh="ps"]{font-size:16px}
 #s14 figure.code pre{font-size:17px}
 #s15 figure.code pre{font-size:17px}
 #s20 figure.code pre{font-size:17px}
@@ -648,8 +653,8 @@ body.help-open #help{display:grid}
   <rect x="448" y="102" width="80" height="58" rx="10" fill="#241d0d" stroke="#f5a623"/><text x="488" y="130" font-size="16" fill="#f5c542" text-anchor="middle">kafka-1</text><text x="488" y="150" font-size="13" fill="#8a713a" text-anchor="middle">:19092</text>
   <rect x="540" y="102" width="80" height="58" rx="10" fill="#241d0d" stroke="#f5a623"/><text x="580" y="130" font-size="16" fill="#f5c542" text-anchor="middle">kafka-2</text><text x="580" y="150" font-size="13" fill="#8a713a" text-anchor="middle">:29092</text>
   <rect x="632" y="102" width="80" height="58" rx="10" fill="#241d0d" stroke="#f5a623"/><text x="672" y="130" font-size="16" fill="#f5c542" text-anchor="middle">kafka-3</text><text x="672" y="150" font-size="13" fill="#8a713a" text-anchor="middle">:39092</text>
-  <text x="580" y="196" font-size="16" fill="#98a2b8" text-anchor="middle" font-family="Consolas,monospace">orders.v1 ×3</text>
-  <text x="580" y="224" font-size="16" fill="#98a2b8" text-anchor="middle" font-family="Consolas,monospace">orders.v1.cancelled ×3</text>
+  <text x="580" y="200" font-size="16" fill="#98a2b8" text-anchor="middle" font-family="Consolas,monospace">orders.v1 ×3</text>
+  <text x="580" y="220" font-size="13" fill="#8a713a" text-anchor="middle">created + cancelled · keyed by order</text>
   <text x="580" y="252" font-size="16" fill="#98a2b8" text-anchor="middle" font-family="Consolas,monospace">orders.v1.DLT ×3</text>
   <text x="580" y="280" font-size="16" fill="#5b657a" text-anchor="middle" font-family="Consolas,monospace">domain-events ×3 (fallback)</text>
   <text x="580" y="316" font-size="15" fill="#8a713a" text-anchor="middle">RF 3 · min.isr 2 · auto-create off</text>
@@ -697,7 +702,7 @@ body.help-open #help{display:grid}
     <h3 style="font-size:24px;margin-bottom:10px;color:var(--kafka)">the cluster floor</h3>
     <ul class="list tight" style="--acc:var(--kafka)">
       <li><strong>3 brokers, KRaft</strong> — quorum needs 2 of 3, so all three always run</li>
-      <li><strong>4 topics × 3 partitions</strong> — orders.v1, .cancelled, .DLT, domain-events</li>
+      <li><strong>3 topics × 3 partitions</strong> — orders.v1, orders.v1.DLT, domain-events</li>
       <li><strong>RF 3 · min.insync.replicas 2</strong> — acked ⇒ durably replicated</li>
       <li><strong>auto-create OFF</strong> — a topic typo fails loudly</li>
       <li><code class="i">domain-events</code> — routing fallback, unconsumed</li>
@@ -707,25 +712,25 @@ body.help-open #help{display:grid}
 <section class="slide" id="s12" data-num="12" data-sec="E" data-secname="Producer"     data-until="1350" data-steps="4" data-title="One transaction, two writes"><div class="canvas"><div class="kicker">producer</div>
 <h2 class="t">One transaction, two writes</h2>
 <figure class="code" style="margin-top:10px">
-  <figcaption><span class="dotc" style="background:var(--producer)"></span>order-service · OrderService.java · 50–66 — verbatim, minus logging</figcaption>
-  <pre class="sm"><span class="ln l-a" data-n="50"><span class="tk-ann">@Transactional</span></span>
-<span class="ln" data-n="51"><span class="tk-kw">public</span> <span class="tk-type">OrderEntity</span> <span class="tk-mth">createOrder</span>(<span class="tk-type">String</span> customerId, <span class="tk-type">BigDecimal</span> totalAmount) {</span>
-<span class="ln" data-n="52">    <span class="tk-type">String</span> orderId = <span class="tk-str">"ORD-"</span> + <span class="tk-type">UUID</span>.<span class="tk-mth">randomUUID</span>()…;</span>
-<span class="ln" data-n="53">    <span class="tk-type">OrderCreated</span> event = <span class="tk-type">OrderCreated</span>.<span class="tk-mth">of</span>(orderId, customerId, totalAmount);</span>
-<span class="ln l-b" data-n="55">    <span class="tk-type">OrderEntity</span> order = orderRepository.<span class="tk-mth">save</span>(</span>
-<span class="ln l-b" data-n="57">            <span class="tk-kw">new</span> <span class="tk-type">OrderEntity</span>(orderId, customerId, totalAmount, <span class="tk-fld">event.eventId()</span>));</span>
-<span class="ln l-c" data-n="59">    outbox.<span class="tk-mth">schedule</span>(</span>
-<span class="ln l-c" data-n="60">            event,</span>
-<span class="ln l-c" data-n="61">            <span class="tk-mth">orderKey</span>(orderId),</span>
-<span class="ln l-c" data-n="62">            <span class="tk-type">Map</span>.<span class="tk-mth">of</span>(<span class="tk-str">"customerId"</span>, customerId, <span class="tk-str">"orderTotal"</span>, totalAmount…));</span>
-<span class="ln" data-n="66">}</span>
-<span class="ln" data-n="135"><span class="tk-kw">static</span> <span class="tk-type">String</span> <span class="tk-mth">orderKey</span>(<span class="tk-type">String</span> orderId) { <span class="tk-kw">return</span> <span class="tk-str">"order-"</span> + orderId; }</span></pre>
+  <figcaption><span class="dotc" style="background:var(--producer)"></span>order-service · OrderService.java · 51–67 — verbatim, minus logging</figcaption>
+  <pre class="sm"><span class="ln l-a" data-n="51"><span class="tk-ann">@Transactional</span></span>
+<span class="ln" data-n="52"><span class="tk-kw">public</span> <span class="tk-type">OrderEntity</span> <span class="tk-mth">createOrder</span>(<span class="tk-type">String</span> customerId, <span class="tk-type">BigDecimal</span> totalAmount) {</span>
+<span class="ln" data-n="53">    <span class="tk-type">String</span> orderId = <span class="tk-str">"ORD-"</span> + <span class="tk-type">UUID</span>.<span class="tk-mth">randomUUID</span>()…;</span>
+<span class="ln" data-n="54">    <span class="tk-type">OrderCreated</span> event = <span class="tk-type">OrderCreated</span>.<span class="tk-mth">of</span>(orderId, customerId, totalAmount);</span>
+<span class="ln l-b" data-n="56">    <span class="tk-type">OrderEntity</span> order = orderRepository.<span class="tk-mth">save</span>(</span>
+<span class="ln l-b" data-n="58">            <span class="tk-kw">new</span> <span class="tk-type">OrderEntity</span>(orderId, customerId, totalAmount, <span class="tk-fld">event.eventId()</span>));</span>
+<span class="ln l-c" data-n="60">    outbox.<span class="tk-mth">schedule</span>(</span>
+<span class="ln l-c" data-n="61">            event,</span>
+<span class="ln l-c" data-n="62">            <span class="tk-mth">orderKey</span>(orderId),</span>
+<span class="ln l-c" data-n="63">            <span class="tk-type">Map</span>.<span class="tk-mth">of</span>(<span class="tk-str">"customerId"</span>, customerId, <span class="tk-str">"orderTotal"</span>, totalAmount…));</span>
+<span class="ln" data-n="67">}</span>
+<span class="ln" data-n="137"><span class="tk-kw">private static</span> <span class="tk-type">String</span> <span class="tk-mth">orderKey</span>(<span class="tk-type">String</span> orderId) { <span class="tk-kw">return</span> <span class="tk-str">"order-"</span> + orderId; }</span></pre>
 </figure>
 <p class="swapcap" data-show="0" data-hide="1"><span class="muted">Same method as slide 3 — with the lie removed. Step through →</span></p>
 <p class="swapcap" data-show="1" data-hide="2"><b>One transaction opens.</b> Everything below is atomic — both writes land, or neither exists.</p>
 <p class="swapcap" data-show="2" data-hide="3">Write № 1 — the business row. Note <code class="i">event.eventId()</code> <b>stored on the order</b>: that little column pays off in the duplicate demo.</p>
 <p class="swapcap" data-show="3" data-hide="4">Write № 2 — <code class="i">outbox.schedule(…)</code> is just an <b>INSERT into outbox_record</b>, same transaction. Ordering key: <code class="i">"order-" + orderId</code>.</p>
-<p class="swapcap" data-show="4"><b>No KafkaTemplate. No producer. No broker in sight.</b> Kafka can be down — this method neither knows nor cares.</p></div><aside class="notes"><p>The mirror of slide 3 — same shape, but write 2 goes to the same database.</p><ul><li>Step 2: created_event_id column exists purely so the demo can replay a byte-identical event later.</li><li>Step 3: schedule() = INSERT into outbox_record with status NEW. Nothing async happened yet.</li><li>Step 4 is the applause line: the request path has zero Kafka dependency.</li></ul></aside></section>
+<p class="swapcap" data-show="4"><b>No KafkaTemplate. No producer. No broker in sight.</b> Kafka can be down — this method neither knows nor cares.</p></div><aside class="notes"><p>The mirror of slide 3 — same shape, but write 2 goes to the same database.</p><ul><li>Step 2: created_event_id column exists purely so the demo can later replay the event under its original id — the one field the inbox compares.</li><li>Step 3: schedule() = INSERT into outbox_record with status NEW. Nothing async happened yet.</li><li>Step 4 is the applause line: the request path has zero Kafka dependency.</li></ul></aside></section>
 <section class="slide" id="s13" data-num="13" data-sec="E" data-secname="Producer"     data-until="1350" data-title="Two producer APIs"><div class="canvas"><div class="kicker">producer</div>
 <h2 class="t">Two producer APIs, one guarantee</h2>
 <div class="cols" style="margin-top:16px;gap:24px">
@@ -763,29 +768,31 @@ body.help-open #help{display:grid}
   <figure class="code">
     <figcaption><span class="dotc" style="background:var(--producer)"></span>KafkaOutboxRoutingConfig.java · condensed</figcaption>
     <pre class="sm"><span class="ln"><span class="tk-type">KafkaOutboxRouting</span>.<span class="tk-mth">builder</span>()</span>
-<span class="ln">  .<span class="tk-mth">route</span>(<span class="tk-type">OutboxPayloadSelector</span>.<span class="tk-mth">type</span>(<span class="tk-type">OrderCreated</span>.<span class="tk-kw">class</span>),</span>
-<span class="ln">      route -&gt; {</span>
+<span class="ln">  .<span class="tk-mth">route</span>(<span class="tk-type">OutboxPayloadSelector</span>.<span class="tk-mth">type</span>(<span class="tk-type">OrderEvent</span>.<span class="tk-kw">class</span>),</span>
+<span class="ln">      route -&gt; {   <span class="tk-cm">// sealed: created + cancelled</span></span>
 <span class="ln">        route.<span class="tk-mth">target</span>(<span class="tk-str">"orders.v1"</span>);</span>
 <span class="ln">        route.<span class="tk-mth">key</span>((payload, meta) -&gt; payload.<span class="tk-mth">orderId</span>());</span>
-<span class="ln">        route.<span class="tk-mth">headers</span>((payload, meta) -&gt; <span class="tk-mth">headers</span>(</span>
-<span class="ln">            <span class="tk-str">"OrderCreated"</span>, payload.<span class="tk-mth">eventId</span>(),</span>
-<span class="ln">            meta.<span class="tk-mth">getContext</span>()));</span>
-<span class="ln">      })</span>
-<span class="ln">  .<span class="tk-mth">route</span>(<span class="tk-type">OutboxPayloadSelector</span>.<span class="tk-mth">type</span>(<span class="tk-type">OrderCancelled</span>.<span class="tk-kw">class</span>),</span>
-<span class="ln">      route -&gt; {   <span class="tk-cm">// same key shape</span></span>
-<span class="ln">        route.<span class="tk-mth">target</span>(<span class="tk-str">"orders.v1.cancelled"</span>);</span>
+<span class="ln">        route.<span class="tk-mth">headers</span>((payload, meta) -&gt; <span class="tk-mth">headers</span>(payload));</span>
 <span class="ln">      })</span>
 <span class="ln">  .<span class="tk-mth">defaults</span>(route -&gt; {   <span class="tk-cm">// unrouted ≠ stranded</span></span>
 <span class="ln">        route.<span class="tk-mth">target</span>(<span class="tk-str">"domain-events"</span>);</span>
 <span class="ln">      })</span>
-<span class="ln">  .<span class="tk-mth">build</span>();</span></pre>
+<span class="ln">  .<span class="tk-mth">build</span>();</span>
+<span class="ln"> </span>
+<span class="ln"><span class="tk-type">String</span> <span class="tk-mth">eventType</span>(<span class="tk-type">OrderEvent</span> event) {</span>
+<span class="ln">  <span class="tk-kw">return switch</span> (event) {   <span class="tk-cm">// exhaustive</span></span>
+<span class="ln">    <span class="tk-kw">case</span> <span class="tk-type">OrderCreated</span> _   -&gt; <span class="tk-str">"OrderCreated"</span>;</span>
+<span class="ln">    <span class="tk-kw">case</span> <span class="tk-type">OrderCancelled</span> _ -&gt; <span class="tk-str">"OrderCancelled"</span>;</span>
+<span class="ln">  };</span>
+<span class="ln">}</span></pre>
   </figure>
   <ul class="list" style="font-size:23px">
-    <li>On the wire: key = <code class="i">orderId</code>; headers carry <code class="i">eventType</code>, <code class="i">eventId</code>, <code class="i">traceId</code>, <code class="i">spanId</code> — duplicates are spottable in Conduktor without deserializing.</li>
-    <li><code class="i">traceId</code> is captured <b>at schedule time</b> by an <code class="i">OutboxContextProvider</code> — the relay thread has no request context.</li>
-    <li>Declaring this bean <b>replaces</b> the default route-everything-to-one-topic behaviour.</li>
+    <li><strong>One topic, both types.</strong> Created and cancelled share a key, so they share a partition — their order survives all the way to the consumer.</li>
+    <li>On the wire: key = <code class="i">orderId</code>; headers carry <code class="i">eventType</code>, <code class="i">eventId</code> and a W3C <code class="i">traceparent</code> — duplicates are spottable in Conduktor without deserializing.</li>
+    <li>The trace is captured <b>at schedule time</b>: namastack stores it on the outbox row and restores it around the send — the relay thread has no request context.</li>
+    <li>Declaring this bean <b>replaces</b> namastack's default routing.</li>
   </ul>
-</div></div><aside class="notes"><p>Casts trimmed for the slide (real code casts payload). If asked about Kotlin interop: builder route/defaults expose both Function1 and Consumer overloads — an expression lambda is ambiguous from Java, a block-bodied lambda resolves to Consumer. The braces are load-bearing.</p><p>Tracing point is a nice observability beat: schedule-time capture is the only way the eventual Kafka record correlates with the HTTP request that caused it.</p></aside></section>
+</div></div><aside class="notes"><p>Casts trimmed for the slide (real code casts payload to <code>OrderEvent</code>). If asked about Kotlin interop: builder route/defaults expose both Function1 and Consumer overloads — an expression lambda is ambiguous from Java, a block-bodied lambda resolves to Consumer. The braces are load-bearing.</p><p><strong>Why one route:</strong> Kafka orders records only within a topic-partition. Created and cancelled on one topic under one key means one partition, so the consumer sees them in order. With a topic per type, a cancel could overtake its own creation — the confession on slide 25. The switch is exhaustive over the sealed <code>OrderEvent</code>: a new event type won't compile until it has a name on the wire.</p><p>Tracing point is a nice observability beat: schedule-time capture is the only way the eventual Kafka record correlates with the HTTP request that caused it. No POC code does it — once a tracing bridge (Brave here) is on the classpath, namastack stores the W3C context on the row and the KafkaTemplate's observation writes <code>traceparent</code>. Without a bridge there is nothing to capture, which is how this POC first shipped (slide 25).</p></aside></section>
 <section class="slide" id="s15" data-num="15" data-sec="E" data-secname="Producer"     data-until="1350" data-title="The relay"><div class="canvas"><div class="kicker">producer</div>
 <h2 class="t">The relay — how the event actually leaves</h2>
 <div class="split" style="grid-template-columns:50fr 50fr;margin-top:18px">
@@ -835,14 +842,14 @@ body.help-open #help{display:grid}
       <ul class="list tight" style="--acc:var(--kafka)">
         <li>201 in <b>~10 ms</b> — before any Kafka involvement</li>
         <li>outbox row born <code class="i">NEW</code> → relay → <code class="i">COMPLETED</code></li>
-        <li>message on <code class="i">orders.v1</code>, key <code class="i">ORD-…</code> — <span class="muted">peek in Conduktor :8080</span></li>
+        <li>message on <code class="i">orders.v1</code>, key <code class="i">ORD-…</code> + <code class="i">traceparent</code> — <span class="muted">Conduktor :8080</span></li>
         <li>one claim + one shipment, committed together</li>
         <li>logs tell the story: <span style="font-family:var(--mono);font-size:18px;color:#9fd8ae">order created → shipment created</span></li>
       </ul>
       <p style="font-size:20px;color:var(--faint);margin-top:16px">Grafana (<span class="warnc">:3000</span>) — "records completed" ticks up; publish p95 visible on the latency panel.</p>
     </div>
   </div>
-</div></div><aside class="notes"><p>Deliberately boring — that's the point. Say it: "this is the demo every talk shows; the next four are the ones they don't."</p><p><strong>Keep the ORD-XXXXXXXX visible</strong> (or copy it) — the duplicate and cancel demos reuse it. If Conduktor is up, one quick look at the message: key, eventId header, traceId header, plain-JSON body.</p></aside></section>
+</div></div><aside class="notes"><p>Deliberately boring — that's the point. Say it: "this is the demo every talk shows; the next four are the ones they don't."</p><p><strong>Keep the ORD-XXXXXXXX visible</strong> (or copy it) — the duplicate and cancel demos reuse it. If Conduktor is up, one quick look at the message: key, eventId header, <code>traceparent</code> header (the POST's trace, carried across the outbox — the second field is the trace id), plain-JSON body.</p></aside></section>
 <section class="slide" id="s17" data-num="17" data-sec="F" data-secname="Demo I"       data-until="1680" data-steps="7" data-title="Demo — kill Kafka"><div class="canvas"><div class="kicker">demo · the core proof</div>
 <h2 class="t" style="font-size:42px">Kill Kafka. Keep taking orders.</h2>
 <div class="split" style="margin-top:10px">
@@ -970,23 +977,26 @@ docker compose start kafka-1 kafka-2 kafka-3</pre>
 <h2 class="t">Consumer shape — claim, then act</h2>
 <div class="split" style="grid-template-columns:62fr 38fr;margin-top:16px">
   <figure class="code">
-    <figcaption><span class="dotc" style="background:var(--consumer)"></span>shipping-service · OrderEventListener.java · 54–70</figcaption>
-    <pre class="sm"><span class="ln" data-n="54"><span class="tk-ann">@KafkaListener</span>(id = <span class="tk-str">"orders-created"</span>,</span>
-<span class="ln" data-n="56">        topics = <span class="tk-str">"orders.v1"</span>,</span>
-<span class="ln" data-n="57">        groupId = <span class="tk-str">"shipping-service"</span>, …)</span>
-<span class="ln" data-n="59"><span class="tk-ann">@Transactional</span></span>
-<span class="ln" data-n="60"><span class="tk-kw">public void</span> <span class="tk-mth">onOrderCreated</span>(</span>
-<span class="ln" data-n="61">        <span class="tk-ann">@Payload</span> <span class="tk-type">OrderCreated</span> event,</span>
-<span class="ln" data-n="62">        <span class="tk-ann">@Header</span>(RECEIVED_TOPIC) <span class="tk-type">String</span> topic,</span>
-<span class="ln" data-n="63">        <span class="tk-ann">@Header</span>(RECEIVED_PARTITION) <span class="tk-kw">int</span> partition,</span>
-<span class="ln" data-n="64">        <span class="tk-ann">@Header</span>(OFFSET) <span class="tk-kw">long</span> offset) {</span>
-<span class="ln" data-n="65"> </span>
-<span class="ln hl" data-n="66">    <span class="tk-kw">if</span> (!inboxGuard.<span class="tk-mth">claim</span>(event.<span class="tk-mth">eventId</span>(),</span>
+    <figcaption><span class="dotc" style="background:var(--consumer)"></span>shipping-service · OrderEventListener.java · 59–80</figcaption>
+    <pre class="sm"><span class="ln" data-n="59"><span class="tk-ann">@KafkaListener</span>(id = <span class="tk-str">"orders"</span>, topics = <span class="tk-str">"orders.v1"</span>,</span>
+<span class="ln" data-n="62">        groupId = <span class="tk-str">"shipping-service"</span>, …)</span>
+<span class="ln" data-n="64"><span class="tk-ann">@Transactional</span></span>
+<span class="ln" data-n="65"><span class="tk-kw">public void</span> <span class="tk-mth">onOrderEvent</span>(</span>
+<span class="ln" data-n="66">        <span class="tk-ann">@Payload</span> <span class="tk-type">OrderEvent</span> event,</span>
+<span class="ln" data-n="67">        <span class="tk-ann">@Header</span>(RECEIVED_TOPIC) <span class="tk-type">String</span> topic,</span>
+<span class="ln" data-n="68">        <span class="tk-ann">@Header</span>(RECEIVED_PARTITION) <span class="tk-kw">int</span> partition,</span>
+<span class="ln" data-n="69">        <span class="tk-ann">@Header</span>(OFFSET) <span class="tk-kw">long</span> offset) {</span>
+<span class="ln hl" data-n="71">    <span class="tk-kw">if</span> (!inboxGuard.<span class="tk-mth">claim</span>(event.<span class="tk-mth">eventId</span>(),</span>
 <span class="ln hl" data-n="">            CONSUMER, topic, partition, offset)) {</span>
-<span class="ln hl" data-n="67">        <span class="tk-kw">return</span>;   <span class="tk-cm">// duplicate — the offset commits</span></span>
-<span class="ln hl" data-n="68">    }</span>
-<span class="ln" data-n="69">    shipmentService.<span class="tk-mth">createShipment</span>(event);</span>
-<span class="ln" data-n="70">}</span></pre>
+<span class="ln hl" data-n="72">        <span class="tk-kw">return</span>;   <span class="tk-cm">// duplicate — the offset commits</span></span>
+<span class="ln hl" data-n="73">    }</span>
+<span class="ln" data-n="76">    <span class="tk-kw">switch</span> (event) {   <span class="tk-cm">// sealed: exhaustive</span></span>
+<span class="ln" data-n="77">        <span class="tk-kw">case</span> <span class="tk-type">OrderCreated</span> c -&gt;</span>
+<span class="ln" data-n="">                shipmentService.<span class="tk-mth">createShipment</span>(c);</span>
+<span class="ln" data-n="78">        <span class="tk-kw">case</span> <span class="tk-type">OrderCancelled</span> c -&gt;</span>
+<span class="ln" data-n="">                shipmentService.<span class="tk-mth">cancelShipment</span>(c);</span>
+<span class="ln" data-n="79">    }</span>
+<span class="ln" data-n="80">}</span></pre>
   </figure>
   <div style="display:flex;flex-direction:column;gap:16px">
     <div class="card" style="padding:18px 22px">
@@ -996,10 +1006,10 @@ docker compose start kafka-1 kafka-2 kafka-3</pre>
       <p style="font-size:21px;line-height:1.45"><code class="i">enable-auto-commit=false</code> · <code class="i">ack-mode: record</code> · <code class="i">concurrency: 3</code> — three threads racing is the normal case, not the edge case.</p>
     </div>
     <div class="card" style="padding:18px 22px">
-      <p style="font-size:21px;line-height:1.45">Every claim increments <code class="i">inbox.messages.processed</code> or <code class="i">.duplicate</code> — the Grafana panel you'll watch in the demos.</p>
+      <p style="font-size:21px;line-height:1.45">Every claim that <b>commits</b> increments <code class="i">inbox.messages.processed</code> or <code class="i">.duplicate</code> — a rolled-back attempt never counts. The Grafana panel you'll watch in the demos.</p>
     </div>
   </div>
-</div></div><aside class="notes"><p>The pattern in one sentence: <strong>claim, then act, in one transaction</strong> — first delivery inserts+works+commits; duplicate returns early (offset commits, no second shipment); failure rolls back both (redelivery is a genuine first attempt).</p><p>Those three sentences ARE the three demos coming up. Say them here, prove them next.</p></aside></section>
+</div></div><aside class="notes"><p>The pattern in one sentence: <strong>claim, then act, in one transaction</strong> — first delivery inserts+works+commits; duplicate returns early (offset commits, no second shipment); failure rolls back both (redelivery is a genuine first attempt).</p><p>Those three sentences ARE the three demos coming up. Say them here, prove them next.</p><p>One listener takes both event types: they share the topic and the key, so one partition hands them over in order, and the switch over the sealed <code>OrderEvent</code> is exhaustive.</p></aside></section>
 <section class="slide" id="s21" data-num="21" data-sec="G" data-secname="Inbox"        data-until="1980" data-title="Why hand-rolled"><div class="canvas"><div class="kicker">inbox</div>
 <h2 class="t">Why this module is hand-rolled</h2>
 <div class="split" style="grid-template-columns:58fr 42fr;margin-top:22px">
@@ -1034,7 +1044,7 @@ docker compose start kafka-1 kafka-2 kafka-3</pre>
       <rect x="8" y="30" width="170" height="150" rx="12" fill="#171310" stroke="#f5a623" stroke-width="2"/>
       <text x="93" y="56" font-size="16" font-weight="700" fill="#ffd9a0" text-anchor="middle">orders.v1</text>
       <g data-show="1" data-hide="2"><use href="#env21" x="32" y="70"/></g>
-      <g data-show="1" data-hide="4"><use href="#env21" x="32" y="118"/><text x="93" y="170" font-size="12" fill="#8a713a" text-anchor="middle">↑ redelivery — same bytes</text></g>
+      <g data-show="1" data-hide="4"><use href="#env21" x="32" y="118"/><text x="93" y="170" font-size="12" fill="#8a713a" text-anchor="middle">↑ redelivery — same eventId</text></g>
       <rect x="250" y="66" width="180" height="66" rx="12" fill="#101a14" stroke="#3ecf8e" stroke-width="2"/>
       <text x="340" y="94" font-size="16" font-weight="700" fill="#c9f2dd" text-anchor="middle">InboxGuard</text>
       <text x="340" y="116" font-size="14" fill="#69b891" text-anchor="middle" font-family="Consolas,monospace">claim(eventId, …)</text>
@@ -1064,7 +1074,7 @@ docker compose start kafka-1 kafka-2 kafka-3</pre>
     </svg>
     <div class="capzone" style="min-height:80px;margin-top:6px">
       <p class="swapcap" data-show="0" data-hide="1"><span class="muted">At-least-once means this <i>will</i> happen. Watch it be boring.</span></p>
-      <p class="swapcap" data-show="1" data-hide="2"><b>1.</b> Two identical deliveries — same <code class="i">eventId</code>, byte-identical payload.</p>
+      <p class="swapcap" data-show="1" data-hide="2"><b>1.</b> Two deliveries of one event — same <code class="i">eventId</code>, the only field the inbox compares.</p>
       <p class="swapcap" data-show="2" data-hide="3"><b>2.</b> First delivery: claim inserts → shipment created → both commit together.</p>
       <p class="swapcap" data-show="3" data-hide="4"><b>3.</b> The duplicate arrives — later, or on another thread. Doesn't matter.</p>
       <p class="swapcap" data-show="4" data-hide="5"><b>4.</b> <code class="i">DO NOTHING</code> → 0 rows → early return. The offset still commits. No exception — a duplicate is <b>not an error</b>.</p>
@@ -1098,7 +1108,7 @@ irm http://localhost:8091/inbox
       <samp>totalClaims &amp; shipments — unchanged · inbox_messages_duplicate_total 1.0</samp>
     </div>
   </div>
-</div></div><aside class="notes"><p>Use the ORD id from the happy-path demo. The replay is honest: <code>created_event_id</code> stored on the order row lets the demo re-schedule a <strong>byte-identical</strong> event through the real outbox → Kafka → listener path — no side channel.</p><p>This simulates the one duplicate the outbox can't rule out: relay sends, crashes before marking COMPLETED, resends on recovery.</p><p>Grafana: "Duplicates suppressed vs. events processed" — the orange line moves. Panel description calls it "the point of the whole exercise".</p></aside></section>
+</div></div><aside class="notes"><p>Use the ORD id from the happy-path demo. The replay is honest: <code>created_event_id</code> stored on the order row lets the demo re-schedule the event <strong>under its original eventId</strong> through the real outbox → Kafka → listener path — no side channel. It isn't byte-identical (<code>occurredAt</code> is rebuilt from <code>created_at</code>) and needn't be: the inbox compares only the id.</p><p>This simulates the one duplicate the outbox can't rule out: relay sends, crashes before marking COMPLETED, resends on recovery.</p><p>Grafana: "Duplicates suppressed vs. events processed" — the orange line moves. Panel description calls it "the point of the whole exercise".</p></aside></section>
 <section class="slide" id="s23" data-num="23" data-sec="H" data-secname="Demo II"      data-until="2400" data-steps="8" data-title="Demo — poison → DLT"><div class="canvas"><div class="kicker">demo · poison pill</div>
 <h2 class="t" style="font-size:42px">Poison → retries → DLT — <span class="cons">no claim left behind</span></h2>
 <div class="split" style="margin-top:10px">
@@ -1173,12 +1183,12 @@ irm http://localhost:8091/inbox</pre>
       <samp class="warns">WARN&nbsp; IllegalStateException: poison event … ×4, 1 s apart</samp>
       <samp class="err">ERROR routing to DLT: topic=orders.v1 …</samp>
       <samp class="err">ERROR DLT: key=ORD-… originalTopic=orders.v1 …</samp>
-      <samp>totalClaims unchanged — 4 failures, zero rows</samp>
+      <samp>totalClaims &amp; processed unchanged — 4 failures, zero rows</samp>
     </div>
   </div>
-</div></div><aside class="notes"><p>The subtle beat is step 3 and it's easy to rush: the claim was INSERTED (1 row!) and then <strong>un</strong>-inserted by the rollback. MANDATORY propagation is what makes this impossible to get wrong — a self-committing claim here would have silently dropped the event.</p><p>Timeline is fast: 4 attempts × 1 s ≈ 4–5 s total before the DLT lines appear. Have the logs already tailing.</p><p><strong>Log levels, so the tail doesn't surprise you:</strong> the four retry lines are <code>WARN</code> — <code>KafkaConsumerConfig</code> calls <code>handler.setLogLevel(WARN)</code>, since an attempt that will be retried is not yet an error. Only the two DLT lines are <code>ERROR</code>, and both are ours: the recoverer's <code>"routing to DLT"</code> and the DLT listener's <code>"DLT: key=…"</code>. Don't grep for ERROR during the retries — there won't be any.</p><p>Conduktor: show the record sitting on orders.v1.DLT, same partition as the original.</p></aside></section>
+</div></div><aside class="notes"><p>The subtle beat is step 3 and it's easy to rush: the claim was INSERTED (1 row!) and then <strong>un</strong>-inserted by the rollback. MANDATORY propagation is what makes this impossible to get wrong — a self-committing claim here would have silently dropped the event.</p><p>The metric agrees: <code>inbox.messages.processed</code> counts on commit, so four rolled-back attempts add nothing — show it with demo 22's prometheus grep. It used to tick four times for zero work (slide 25).</p><p>Timeline is fast: 4 attempts × 1 s ≈ 4–5 s total before the DLT lines appear. Have the logs already tailing.</p><p><strong>Log levels, so the tail doesn't surprise you:</strong> the four retry lines are <code>WARN</code> — <code>KafkaConsumerConfig</code> calls <code>handler.setLogLevel(WARN)</code>, since an attempt that will be retried is not yet an error. Only the two DLT lines are <code>ERROR</code>, and both are ours: the recoverer's <code>"routing to DLT"</code> and the DLT listener's <code>"DLT: key=…"</code>. Don't grep for ERROR during the retries — there won't be any.</p><p>Conduktor: show the record sitting on orders.v1.DLT, same partition as the original.</p></aside></section>
 <section class="slide" id="s24" data-num="24" data-sec="H" data-secname="Demo II"      data-until="2400" data-steps="5" data-title="Demo — ordering"><div class="canvas"><div class="kicker">demo · ordering</div>
-<h2 class="t" style="font-size:42px">One key, two API styles, two topics</h2>
+<h2 class="t" style="font-size:42px">One key, two API styles, one topic</h2>
 <div class="split" style="margin-top:10px">
   <div style="position:relative">
     <svg viewBox="0 0 620 430" style="width:100%">
@@ -1197,29 +1207,30 @@ irm http://localhost:8091/inbox</pre>
       <!-- relay -->
       <circle cx="180" cy="200" r="26" fill="#14243a" stroke="#4da3ff" stroke-width="2"/><text x="180" y="206" font-size="13" fill="#cfe4ff" text-anchor="middle">relay</text>
       <g data-show="2" data-hide="3"><rect x="220" y="182" width="180" height="36" rx="8" fill="#1d2432" stroke="#2a3245"/><text x="310" y="206" font-size="13" fill="#98a2b8" text-anchor="middle">cancelled waits its turn…</text></g>
-      <!-- topic lanes -->
+      <!-- the one topic lane -->
       <rect x="8" y="250" width="604" height="46" rx="9" fill="#171310" stroke="#f5a623" stroke-width="1.5"/>
       <text x="20" y="279" font-size="13" fill="#8a713a" font-family="Consolas,monospace">orders.v1 · p1</text>
-      <rect x="8" y="306" width="604" height="46" rx="9" fill="#171310" stroke="#f5a623" stroke-width="1.5"/>
-      <text x="20" y="335" font-size="13" fill="#8a713a" font-family="Consolas,monospace">orders.v1.cancelled · p1</text>
       <g data-show="2" class="fly-r"><rect x="200" y="258" width="128" height="30" rx="6" fill="#241d0d" stroke="#4da3ff"/><text x="264" y="278" font-size="13" fill="#cfe4ff" text-anchor="middle" font-family="Consolas,monospace">created</text></g>
-      <g data-show="3" class="fly-r"><rect x="160" y="314" width="128" height="30" rx="6" fill="#241d0d" stroke="#8f7df0"/><text x="224" y="334" font-size="13" fill="#c7bdf7" text-anchor="middle" font-family="Consolas,monospace">cancelled</text></g>
-      <g data-show="4" class="fly-R"><rect x="430" y="314" width="128" height="30" rx="6" fill="#241d0d" stroke="#8f7df0" stroke-width="2"/><text x="494" y="334" font-size="13" fill="#c7bdf7" text-anchor="middle" font-family="Consolas,monospace">cancelled ⚡</text></g>
-      <g data-show="4"><text x="452" y="242" font-size="14" fill="#e8cf8d" text-anchor="middle">separate topics — the consumer may see them cross</text><rect x="360" y="258" width="128" height="30" rx="6" fill="#241d0d" stroke="#4da3ff" stroke-dasharray="4 4"/><text x="424" y="278" font-size="13" fill="#7f9bc4" text-anchor="middle" font-family="Consolas,monospace">created …lag</text></g>
+      <g data-show="3" class="fly-r"><rect x="340" y="258" width="128" height="30" rx="6" fill="#241d0d" stroke="#8f7df0"/><text x="404" y="278" font-size="13" fill="#c7bdf7" text-anchor="middle" font-family="Consolas,monospace">cancelled</text></g>
+      <g data-show="3"><text x="452" y="242" font-size="14" fill="#e8cf8d" text-anchor="middle">same topic, same key → same partition, in order</text></g>
+      <!-- the one listener -->
+      <rect x="8" y="306" width="604" height="46" rx="9" fill="#101a14" stroke="#3ecf8e" stroke-width="1.5"/>
+      <text x="20" y="335" font-size="13" fill="#69b891" font-family="Consolas,monospace">shipping · one listener</text>
+      <g data-show="4"><g class="fly-d"><rect x="232" y="314" width="144" height="30" rx="6" fill="#241d0d" stroke="#4da3ff"/><text x="304" y="334" font-size="13" fill="#cfe4ff" text-anchor="middle" font-family="Consolas,monospace">① created</text></g><g class="fly-d" style="animation-delay:.45s"><rect x="392" y="314" width="160" height="30" rx="6" fill="#241d0d" stroke="#8f7df0"/><text x="472" y="334" font-size="13" fill="#c7bdf7" text-anchor="middle" font-family="Consolas,monospace">② cancelled</text></g></g>
       <!-- consumer verdict -->
       <g data-show="5" class="pop">
-        <rect x="8" y="368" width="604" height="56" rx="10" fill="#12151d" stroke="#4a3d1e"/>
-        <text x="24" y="392" font-size="14" fill="#e8cf8d" font-family="Consolas,monospace">WARN cancellation for order=ORD-91 has no shipment yet; nothing to do</text>
-        <text x="24" y="414" font-size="13" fill="#98a2b8">not an error — tolerated by design, because cross-topic order is not promised</text>
+        <rect x="8" y="368" width="604" height="56" rx="10" fill="#12291f" stroke="#2b5c44"/>
+        <text x="24" y="392" font-size="14" fill="#8ee6a8" font-family="Consolas,monospace">INFO shipment cancelled id=SHP-17 order=ORD-91 reason=changed-mind</text>
+        <text x="24" y="414" font-size="13" fill="#98a2b8">one partition per order — the cancel cannot overtake its creation</text>
       </g>
     </svg>
     <div class="capzone" style="min-height:80px;margin-top:6px">
-      <p class="swapcap" data-show="0" data-hide="1"><span class="muted">Create, then cancel — the ordering story has a guaranteed half and an honest half.</span></p>
+      <p class="swapcap" data-show="0" data-hide="1"><span class="muted">Create, then cancel — one order's events, in order, from the outbox row to the handler.</span></p>
       <p class="swapcap" data-show="1" data-hide="2"><b>1.</b> Two API styles, two modules — <b>one identical key</b>. namastack queues per key.</p>
       <p class="swapcap" data-show="2" data-hide="3"><b>2.</b> The relay is strictly sequential per key: <i>created</i> leaves; <i>cancelled</i> waits. <code class="i">stop-on-first-failure</code> keeps that queue honest even under errors.</p>
-      <p class="swapcap" data-show="3" data-hide="4"><b>3.</b> Both land — same partition number, <b>different topics</b>.</p>
-      <p class="swapcap" data-show="4" data-hide="5"><b>4.</b> Two topics = two consumer streams. The cancel <i>can</i> overtake the create.</p>
-      <p class="swapcap" data-show="5"><b>5.</b> The handler tolerates it — a WARN, not a crash. <b>Per topic-partition: guaranteed. Across topics: tolerance is the design.</b></p>
+      <p class="swapcap" data-show="3" data-hide="4"><b>3.</b> Both land on <code class="i">orders.v1</code> under one Kafka key — <b>the same partition</b>, created first.</p>
+      <p class="swapcap" data-show="4" data-hide="5"><b>4.</b> One partition is one ordered stream: the listener takes <i>created</i>, then <i>cancelled</i>. The cancel <b>cannot</b> overtake.</p>
+      <p class="swapcap" data-show="5"><b>5.</b> The shipment is cancelled. <b>Same key, same topic, same partition: ordered end to end.</b></p>
     </div>
   </div>
   <div class="side">
@@ -1229,37 +1240,47 @@ irm http://localhost:8091/inbox</pre>
 curl -s -X POST "localhost:8090/orders/ORD-XXXXXXXX/cancel?reason=changed-mind"
 
 <span class="tk-cm"># 2 · one key, both events, in order</span>
-docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status FROM outbox_record WHERE record_key='order-ORD-XXXXXXXX' ORDER BY created_at;"</pre>
+docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status FROM outbox_record WHERE record_key='order-ORD-XXXXXXXX' ORDER BY created_at;"
+
+<span class="tk-cm"># 3 · the shipment followed</span>
+curl -s localhost:8091/shipments</pre>
       <pre data-sh="ps"><span class="tk-cm"># 1 · cancel the happy-path order</span>
 irm -Method Post "http://localhost:8090/orders/ORD-XXXXXXXX/cancel?reason=changed-mind"
 
 <span class="tk-cm"># 2 · one key, both events, in order</span>
-docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status FROM outbox_record WHERE record_key='order-ORD-XXXXXXXX' ORDER BY created_at;"</pre>
+docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status FROM outbox_record WHERE record_key='order-ORD-XXXXXXXX' ORDER BY created_at;"
+
+<span class="tk-cm"># 3 · the shipment followed</span>
+irm http://localhost:8091/shipments</pre>
     </div>
     <div class="expect"><div class="xh">expect</div>
       <samp>shipment cancelled id=… order=ORD-… reason=changed-mind</samp>
-      <samp class="warns">— or, legitimately: WARN … no shipment yet; nothing to do</samp>
       <samp>…OrderCreated | COMPLETED&nbsp;&nbsp;then&nbsp;&nbsp;…OrderCancelled | COMPLETED</samp>
+      <samp>{"orderId":"ORD-…",…,"status":"CANCELLED",…}</samp>
     </div>
   </div>
-</div></div><aside class="notes"><p>The most senior slide of the demo block: it shows a <em>limit</em>. Per-key ordering is real on each topic-partition; the create/cancel pair still crosses topics, so the consumer tolerates early cancels instead of pretending.</p><p>If someone asks "why two topics then?" — fair question: one topic with an event-type header is a legitimate alternative; this POC keeps them split to make the limitation visible.</p><p>The SpEL key on the annotation reproducing the Java concatenation is what makes row 1 possible — drift test pins it (slide 27).</p></aside></section>
+</div></div><aside class="notes"><p>The most senior slide of the demo block — and it used to show a <em>limit</em>. Cancellations had a topic of their own: per-key order held on each topic-partition but not across topics, and a cancel consumed first found no shipment, logged a WARN and was silently dropped. Slide 25 has the confession.</p><p>One topic for both types closes it: same key → same partition → one ordered stream into one listener. If someone asks "why not a topic per event type?" — you can, but ordering between the types is then gone, and the consumer must cope explicitly: park early cancels, or retry until the creation lands.</p><p>The SpEL key on the annotation reproducing the Java concatenation is what makes row 1 possible — drift test pins it (slide 27).</p></aside></section>
 <section class="slide" id="s25" data-num="25" data-sec="I" data-secname="Sharp edges"  data-until="2670" data-title="Sharp edges I shipped"><div class="canvas"><div class="kicker">sharp edges · 1</div>
 <h2 class="t">Bugs I shipped in my own demo</h2>
-<div style="display:flex;flex-direction:column;gap:11px;margin-top:14px">
+<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
   <div class="card" style="border-left:4px solid var(--warn)">
-    <h3 style="font-size:25px;margin-bottom:8px">The two keys that were "the same"</h3>
-    <p style="font-size:22px;line-height:1.45;color:var(--muted)">Comment &amp; diagram claim <i>Kafka key == outbox key</i>. Reality: outbox key <code class="i">order-ORD-4F2A</code>, Kafka key <code class="i">ORD-4F2A</code>. Ordering survives — each is consistent per order — but the diagram lies, and anyone joining or deduping "on the key" gets burned.</p>
+    <h3 style="font-size:22px;margin-bottom:4px">The two keys that were "the same"</h3>
+    <p style="font-size:19px;line-height:1.42;color:var(--muted)">Comments &amp; diagram claimed <i>Kafka key == outbox key</i>. Reality: outbox key <code class="i">order-ORD-4F2A</code>, Kafka key <code class="i">ORD-4F2A</code>. Ordering survives — both derive from the order id — but anyone joining or deduping "on the key" gets burned.</p>
   </div>
   <div class="card" style="border-left:4px solid var(--danger)">
-    <h3 style="font-size:25px;margin-bottom:8px">The DLT that doesn't exist</h3>
-    <p style="font-size:22px;line-height:1.45;color:var(--muted)">The recoverer targets <code class="i">topic + ".DLT"</code> — but only <code class="i">orders.v1.DLT</code> was ever created, and auto-create is off. A poisoned <i>cancellation</i> has nowhere to go: the <b>recovery path itself</b> fails, silently, until the first bad cancel.</p>
+    <h3 style="font-size:22px;margin-bottom:4px">The cancellation that vanished</h3>
+    <p style="font-size:19px;line-height:1.42;color:var(--muted)">Cancels had a topic of their own. One consumed before its creation found no shipment, logged a WARN — and its claim <b>committed</b>: lost for good, the shipment stuck at PENDING. Its DLT didn't exist either. <b class="ok">Fixed:</b> one topic, one partition per order.</p>
+  </div>
+  <div class="card" style="border-left:4px solid var(--warn)">
+    <h3 style="font-size:22px;margin-bottom:4px">Telemetry that lied twice</h3>
+    <p style="font-size:19px;line-height:1.42;color:var(--muted)">Trace ids were copied from MDC — with no tracing bridge on the classpath, so the headers never appeared. And <code class="i">processed</code> counted at claim time: the poison demo reported four for zero work. <b class="ok">Fixed:</b> a Brave bridge, counting on commit.</p>
   </div>
   <div class="card" style="border-left:4px solid var(--kafka)">
-    <h3 style="font-size:25px;margin-bottom:8px">Retention <i>is</i> the dedup window</h3>
-    <p style="font-size:22px;line-height:1.45;color:var(--muted)">Inbox claims are purged after 7 days. Anything redelivered later is processed <b>again</b> — so inbox retention must stay comfortably above topic retention. An unbounded ledger is a slow-motion outage; a short one silently reopens the duplicate window.</p>
+    <h3 style="font-size:22px;margin-bottom:4px">Retention <i>is</i> the dedup window</h3>
+    <p style="font-size:19px;line-height:1.42;color:var(--muted)">Inbox claims are purged after 7 days. Anything redelivered later is processed <b>again</b> — so inbox retention must stay comfortably above topic retention. Unbounded is a slow-motion outage; too short silently reopens the duplicate window.</p>
   </div>
 </div>
-<div class="foot">All three were found by re-reading, not by tests. What the tests <i>do</i> pin — two slides ahead.</div></div><aside class="notes"><p>The credibility slide — deliver it as confessions, not caveats. Each one is "claimed / actual / who gets burned".</p><ul><li>Key drift: if someone opens Conduktor during demo 1 they can SEE the key is <code>ORD-…</code> while the outbox row says <code>order-ORD-…</code>. Own it before they spot it.</li><li>Missing DLT: only the created-order poison path is demoed; a poisoned cancel would break the recoverer. That's a config review item, not a code fix.</li></ul></aside></section>
+<div class="foot">Found by re-reading, not by tests. Each fix now comes with a test that pins it — two slides ahead.</div></div><aside class="notes"><p>The credibility slide — deliver it as confessions, not caveats. Each one is "claimed / actual / who gets burned" — and for two of them, "how it's fixed".</p><ul><li>Key drift: if someone opens Conduktor during demo 1 they can SEE the key is <code>ORD-…</code> while the outbox row says <code>order-ORD-…</code>. Own it before they spot it. Left in on purpose; the code comments and diagrams now describe it honestly.</li><li>The vanished cancellation is the big one. The old ordering demo called the early cancel "tolerated by design" — it was data loss, in a talk called <i>losing messages is a choice</i>. The one-topic fix is what slide 24 now shows; the test is on slide 27.</li><li>Telemetry: the trace headers were promised in code comments and on the routing slide but never existed, and the processed counter over-reported every failure. Both invisible while the demo "works" — which is the lesson.</li></ul></aside></section>
 <section class="slide" id="s26" data-num="26" data-sec="I" data-secname="Sharp edges"  data-until="2670" data-title="Library realities"><div class="canvas"><div class="kicker">sharp edges · 2</div>
 <h2 class="t">Library realities</h2>
 <ul class="list" style="margin-top:24px">
@@ -1270,7 +1291,7 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
 </ul></div><aside class="notes"><p>Each bullet is a "you'll hit this in week one" item.</p><ul><li>Record-id point pairs with slide 13 — the eventId was born inside the producer transaction, which is exactly why replays carry the same id.</li><li>The deserializer bullet foreshadows nothing — it's the one failure mode we did NOT live-demo (needs a raw producer writing garbage bytes; mention Conduktor can do it if someone asks).</li></ul></aside></section>
 <section class="slide" id="s27" data-num="27" data-sec="I" data-secname="Sharp edges"  data-until="2670" data-title="Pinned by tests"><div class="canvas"><div class="kicker">sharp edges · 3</div>
 <h2 class="t">Guarantees pinned by tests</h2>
-<table class="tbl" style="margin-top:20px">
+<table class="tbl" style="margin-top:14px">
   <tr><th style="width:46%">property</th><th>test</th></tr>
   <tr><td style="white-space:normal">rollback discards order + event <b>together</b></td><td><code class="i" style="font-size:17px">rollbackDiscardsTheOrderAndItsEventTogether</code></td></tr>
   <tr><td style="white-space:normal">COMPLETED only <b>after</b> the broker ack</td><td><code class="i" style="font-size:17px">committedOrderWritesAnOutboxRecordAndIsEventuallyPublished</code></td></tr>
@@ -1279,8 +1300,11 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
   <tr><td style="white-space:normal">a failed attempt leaves <b>no claim</b></td><td><code class="i" style="font-size:17px">aFailedAttemptLeavesNoClaimSoTheRetryIsTreatedAsFirstDelivery</code></td></tr>
   <tr><td style="white-space:normal">fan-out: each consumer has its <b>own ledger</b></td><td><code class="i" style="font-size:17px">twoConsumersEachProcessTheSameEventOnce</code></td></tr>
   <tr><td style="white-space:normal">claim outside a transaction = <b>loud failure</b></td><td><code class="i" style="font-size:17px">claimingWithoutATransactionIsRejected</code></td></tr>
+  <tr class="fix"><td style="white-space:normal">create + cancel: <b>one partition</b>, in order</td><td><code class="i" style="font-size:17px">creationAndCancellationShareAPartitionAndArriveInOrder</code></td></tr>
+  <tr class="fix"><td style="white-space:normal">the record carries the <b>request's trace</b></td><td><code class="i" style="font-size:17px">thePublishedRecordCarriesTheTraceOfTheRequestThatScheduledIt</code></td></tr>
+  <tr class="fix"><td style="white-space:normal">a rolled-back attempt is <b>not counted</b></td><td><code class="i" style="font-size:17px">onlyAttemptsThatCommitAreCountedAsProcessed</code></td></tr>
 </table>
-<div class="foot">Testcontainers 2 — real Postgres, real Kafka. <b>None of these are provable with mocks.</b> The SpEL-drift test matters most: that failure is invisible at runtime, which is exactly why it is pinned.</div></div><aside class="notes"><p>Don't read the table — pick two rows:</p><ul><li><strong>Ordering-key drift test:</strong> the Java string and the SpEL string live in different modules; nothing but this test connects them. If they drift, creations and cancellations relay concurrently.</li><li><strong>No-claim-left-behind:</strong> the property demo 23 showed — here's the executable proof.</li></ul></aside></section>
+<div class="foot">Testcontainers 2 — real Postgres, real Kafka. <b>None of these are provable with mocks.</b> The SpEL-drift test matters most: that failure is invisible at runtime, which is exactly why it is pinned.</div></div><aside class="notes"><p>Don't read the table — pick two rows:</p><ul><li><strong>Ordering-key drift test:</strong> the Java string and the SpEL string live in different modules; nothing but this test connects them. If they drift, creations and cancellations relay concurrently.</li><li><strong>No-claim-left-behind:</strong> the property demo 23 showed — here's the executable proof.</li><li><strong>The three amber rows</strong> are slide 25's fixes, each pinned. The ordering test reads <code>orders.v1</code> off a real broker, and it was confirmed to fail against the old two-topic routing.</li></ul></aside></section>
 <section class="slide" id="s28" data-num="28" data-sec="J" data-secname="Close"        data-until="2910" data-title="When NOT to do this"><div class="canvas"><div class="kicker">close</div>
 <h2 class="t">When <span class="bad">not</span> to do this</h2>
 <div class="split" style="grid-template-columns:55fr 45fr;margin-top:20px">
@@ -1310,9 +1334,9 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
   <li>Create <strong>every</strong> <code class="i">.DLT</code> topic up front (auto-create stays off) — and <strong>alert on the DLT listener</strong>; a dead-lettered event is an incident, not a log line.</li>
   <li>Size <code class="i">demo.inbox.cleanup.retention</code> comfortably <strong>above topic retention</strong> — it is the dedup window.</li>
   <li>Registry-backed contracts: swap <code class="i">JacksonJsonSerializer</code> → Confluent's <code class="i">KafkaJsonSchemaSerializer</code>. Outbox and inbox logic <b>unchanged</b>.</li>
-  <li>Dashboards that answer questions: backlog <span class="muted">(new + failed)</span>, publish p95/p99, duplicates suppressed, consumer lag.</li>
+  <li>Dashboards that answer questions: backlog <span class="muted">(new + failed)</span>, publish p95/p99, duplicates suppressed, consumer lag — and export the traces; here they only correlate.</li>
   <li>Load-test the relay: instances claim outbox partitions and rebalance by heartbeat <span class="muted">(5 s beat / 30 s stale / 10 s rebalance here)</span> — verify failover before prod does it for you.</li>
-</ul></div><aside class="notes"><p><strong>Designated skip slide.</strong> If the timer is amber by slide 28, jump straight to takeaways — this list is in the repo README anyway.</p><p>If kept: the DLT-alert bullet ties back to the missing-topic confession on slide 25.</p></aside></section>
+</ul></div><aside class="notes"><p><strong>Designated skip slide.</strong> If the timer is amber by slide 28, jump straight to takeaways — this list is in the repo README anyway.</p><p>If kept: the DLT bullet ties back to slide 25 — the cancellations' DLT never existed until the one-topic fix made it unnecessary. The trace bullet too: Brave with no reporter keeps spans in-process, so trace ids correlate logs and records but nothing reaches a tracing backend.</p></aside></section>
 <section class="slide" id="s30" data-num="30" data-sec="J" data-secname="Close"        data-until="2910" data-title="Takeaways"><div class="canvas"><div class="kicker">close</div>
 <h2 class="t">Takeaways</h2>
 <div style="display:flex;flex-direction:column;gap:26px;margin-top:40px">
@@ -1326,7 +1350,7 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
   </div>
   <div style="display:flex;gap:26px;align-items:baseline">
     <span style="font:800 46px var(--mono);color:var(--consumer)">3</span>
-    <p style="font-size:31px;line-height:1.4">The sharp edges <i>are</i> the lesson: keys drift, DLTs go missing, retention is a semantic choice. <b>Re-read your own demos.</b></p>
+    <p style="font-size:31px;line-height:1.4">The sharp edges <i>are</i> the lesson: keys drift, ordering stops at the topic boundary, retention is a semantic choice. <b>Re-read your own demos.</b></p>
   </div>
 </div></div><aside class="notes"><p>Slow down here. One breath per line. These three sentences are what the room takes home.</p></aside></section>
 <section class="slide" id="s31" data-num="31" data-sec="J" data-secname="Close"        data-until="2910" data-title="Thanks / Q&amp;A"><div class="canvas"><div style="height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center">
@@ -1361,7 +1385,7 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
       <div>shipping-service <span class="warnc">:8091</span></div>
     </div>
   </div>
-</div></div><aside class="notes"><p>Machine reality: ~7.5 GB free RAM. Broker heaps are capped at 512 MB each and every JVM container has a memory limit — but the bring-up order still matters. If <code>docker ps</code> hangs: check host memory and the WSL VM before blaming the build.</p></aside></section>
+</div></div><aside class="notes"><p>Machine reality: ~7.5 GB free RAM. Broker heaps are capped at 512 MB each and every JVM container has a memory limit — but the bring-up order still matters. If <code>docker ps</code> hangs: check host memory and the WSL VM before blaming the build.</p><p>Stop any other Kafka compose stack first — it would hold the same container names (<code>kafka-1…3</code>, <code>schema-registry</code>) and the RAM. After pulling the one-topic change, start once from clean volumes (<code>docker compose down -v</code>) so the old <code>orders.v1.cancelled</code> topic and its offsets are gone.</p></aside></section>
 <section class="slide" id="s33" data-num="33" data-sec="X" data-secname="Appendix"     data-until="0"    data-title="Library defaults vs. this POC"><div class="canvas"><div class="kicker">appendix — not part of the talk · q&amp;a ammo</div>
 <h2 class="t" style="font-size:42px">Library defaults vs. this POC</h2>
 <p class="sub" style="font-size:21px;margin-bottom:12px"><code class="i">namastack.outbox.*</code> — defaults read from the 1.9.0 core jar’s own configuration metadata. <b class="warnc">amber = overridden here</b> · <span class="muted">“same” = the yml restates the default so slide 15 can read one file aloud</span></p>
@@ -1378,9 +1402,9 @@ docker exec app-postgres psql -U demo -d orderdb -c "SELECT record_type, status 
   <tr><td>processing.stop-on-first-failure</td><td>true <span class="muted">— ordering by default</span></td><td><span class="muted">same</span></td></tr>
   <tr><td>processing.delete-completed-records</td><td>false</td><td><span class="muted">same</span></td></tr>
   <tr><td>instance.heartbeat · stale-timeout · rebalance</td><td>5s · 30s · 10s</td><td><span class="muted">same</span></td></tr>
-  <tr><td>kafka.default-topic</td><td>outbox-events</td><td><b class="warnc">domain-events</b></td></tr>
+  <tr><td>kafka.default-topic</td><td>outbox-events</td><td><span class="muted">unset — the routing bean falls back to</span> domain-events</td></tr>
 </table>
-<div class="foot">The override that matters: <b>max-retries defaults to 3</b> — on defaults, a dead cluster turns rows <code class="i">FAILED</code> after ~14s of backoff (2+4+8), before the brokers even re-form quorum. Ten retries capped at 30s keep the relay trying for ≈3½ minutes.</div></div><aside class="notes"><p>Source: <code>META-INF/spring-configuration-metadata.json</code> inside <code>namastack-outbox-core-1.9.0.jar</code> — the artefact the build resolves, not the docs site. Property description confirms max-retries counts <em>retry</em> attempts after the first try.</p><p><strong>Q&amp;A ammo, "is 10 the default?":</strong> no — 3. The demo raises it because the kill-Kafka demo needs the relay still retrying after a multi-minute outage; on defaults the rows would give up while the brokers are still re-forming quorum (~20–30s), and slide 17’s "the recovery is the pattern" line would be a lie.</p><p>Worth saying if asked: stop-on-first-failure=true and delete-completed-records=false are <em>defaults</em> — the yml restates them for narration. And the routing fallback topic is a rename: outbox-events → domain-events.</p></aside></section>
+<div class="foot">The override that matters: <b>max-retries defaults to 3</b> — on defaults, a dead cluster turns rows <code class="i">FAILED</code> after ~14s of backoff (2+4+8), before the brokers even re-form quorum. Ten retries capped at 30s keep the relay trying for ≈3½ minutes.</div></div><aside class="notes"><p>Source: <code>META-INF/spring-configuration-metadata.json</code> inside <code>namastack-outbox-core-1.9.0.jar</code> — the artefact the build resolves, not the docs site. Property description confirms max-retries counts <em>retry</em> attempts after the first try.</p><p><strong>Q&amp;A ammo, "is 10 the default?":</strong> no — 3. The demo raises it because the kill-Kafka demo needs the relay still retrying after a multi-minute outage; on defaults the rows would give up while the brokers are still re-forming quorum (~20–30s), and slide 17’s "the recovery is the pattern" line would be a lie.</p><p>Worth saying if asked: stop-on-first-failure=true and delete-completed-records=false are <em>defaults</em> — the yml restates them for narration. And the fallback topic isn't a property override at all: <code>default-topic</code> only feeds namastack's built-in routing, which <code>KafkaOutboxRoutingConfig</code> replaces — its <code>.defaults(…)</code> names <code>domain-events</code>.</p></aside></section>
 </main>
 
 <aside id="notes-panel" aria-label="speaker notes">
