@@ -20,8 +20,19 @@ public sealed interface OrderEvent permits OrderCreated, OrderCancelled {
     String eventId();
 
     /**
-     * Aggregate id. The outbox ordering key ({@code "order-" + orderId}) and the Kafka message key
-     * ({@code orderId}) are both derived from it, which pins ordering and partitioning per order.
+     * Aggregate id: the one value both keys below are derived from. They are two different
+     * strings with two different jobs, so never join or dedupe on one using the other.
+     *
+     * <ul>
+     *   <li><b>Outbox key</b> = {@code "order-" + orderId}. In namastack the key is the aggregate
+     *       id: records sharing it are relayed strictly one at a time, in the order they were
+     *       scheduled. It orders the <em>relay</em> (outbox table to Kafka). Both producer paths
+     *       must build it identically, see {@code OrderService} and {@code OrderCancelled}.
+     *   <li><b>Kafka key</b> = the bare {@code orderId}, set in {@code KafkaOutboxRoutingConfig}.
+     *       Kafka hashes the record key to pick a partition, so every event of one order lands on
+     *       the same partition and is consumed in publish order. It orders the
+     *       <em>consumption</em> (Kafka to listener).
+     * </ul>
      */
     String orderId();
 

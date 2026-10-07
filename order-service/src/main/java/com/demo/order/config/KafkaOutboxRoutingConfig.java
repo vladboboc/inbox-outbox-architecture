@@ -22,8 +22,9 @@ import java.util.Map;
  * publishes one order's events in sequence, because they share the outbox key
  * {@code "order-" + orderId} (see {@code OrderService}), but Kafka preserves that sequence only
  * within one topic-partition. With cancellations on a topic of their own, a cancellation could be
- * consumed before its own creation. (The Kafka key and the outbox key are different strings, but
- * both derive from the order id alone.)
+ * consumed before its own creation. (The Kafka key is the partition key; the outbox key is
+ * namastack's aggregate id. They are different strings, but both derive from the order id alone;
+ * see {@code OrderEvent#orderId}.)
  *
  * <p>Trace context crosses the outbox without any code here. The record is written during the
  * HTTP request but published later, from a poller thread that has no request context of its own,

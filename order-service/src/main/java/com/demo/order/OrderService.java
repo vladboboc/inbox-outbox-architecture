@@ -42,9 +42,11 @@ public class OrderService {
     /**
      * Explicit producer path: {@code outbox.schedule(payload, key)}.
      *
-     * <p>The key is {@code order-<id>}. namastack processes records sharing a key strictly
+     * <p>The key is {@code order-<id>}: the outbox key, i.e. the aggregate id as namastack sees it
+     * (see {@code OrderEvent#orderId}). namastack processes records sharing a key strictly
      * sequentially, so every event for one order is relayed in the order it was scheduled. The
-     * routing then publishes them all to one topic under one Kafka key (see
+     * routing then publishes them all to one topic under one Kafka key, the bare order id, which
+     * Kafka uses as the partition key (see
      * {@code KafkaOutboxRoutingConfig}), so they share a partition and the consumer sees them in
      * that same order.
      */
