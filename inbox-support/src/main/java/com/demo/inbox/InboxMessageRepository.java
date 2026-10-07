@@ -18,9 +18,9 @@ public interface InboxMessageRepository
      * <p>{@code ON CONFLICT DO NOTHING} does the check and the write in a single statement, which
      * is the point: a {@code SELECT}-then-{@code INSERT} would leave a window in which two
      * concurrent deliveries of the same event both see "not processed" and both proceed. That
-     * window is not hypothetical — a rebalance or a redelivery from a second broker can land the
-     * same event on two threads at nearly the same moment. Here the loser of the race gets 0 rows
-     * back from the database itself.
+     * window is not hypothetical — after a rebalance, a partition's new owner can start on an event
+     * its previous owner is still processing, landing it on two threads at nearly the same moment.
+     * Here the loser of the race gets 0 rows back from the database itself.
      *
      * <p>Native query because JPQL has no vendor-specific upsert syntax.
      */

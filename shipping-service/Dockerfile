@@ -1,5 +1,6 @@
 # Build context is the repository root, since this module depends on sibling modules.
 #   docker compose build shipping-service
+# Same structure as order-service/Dockerfile, which carries the explanatory comments.
 FROM maven:3.9-eclipse-temurin-25 AS build
 WORKDIR /build
 
@@ -32,5 +33,5 @@ USER appuser
 COPY --from=build /build/shipping-service/target/shipping-service-*.jar /app/app.jar
 
 EXPOSE 8091
-ENV JAVA_OPTS="-XX:MaxRAMPercentage=70 -XX:+UseZGC"
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=60 -XX:+UseZGC"
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]

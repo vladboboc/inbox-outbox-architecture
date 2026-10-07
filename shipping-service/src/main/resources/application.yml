@@ -58,11 +58,18 @@ spring:
     listener:
       ack-mode: record
       concurrency: 3
-      # Surfaces the topic/partition/offset headers the inbox records for diagnostics.
+      # Continues the trace from each record's traceparent header, so these logs carry the trace id
+      # of the order request, and times every invocation as a spring.kafka.listener metric. Not
+      # what supplies the topic/partition/offset headers the inbox records -- Spring Kafka always
+      # provides those.
       observation-enabled: true
     producer:
       # Used only by the dead-letter publisher.
       acks: all
+      properties:
+        # The dead-letter topic carries both event types, same as orders.v1: one subject per record
+        # name rather than one orders.v1.DLT-value that the second type would collide with.
+        value.subject.name.strategy: io.confluent.kafka.serializers.subject.RecordNameStrategy
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       # No value-serializer here. The recoverer publishes two shapes -- the deserialized Avro record
       # when the listener threw, and the original byte[] when deserialization itself failed -- and

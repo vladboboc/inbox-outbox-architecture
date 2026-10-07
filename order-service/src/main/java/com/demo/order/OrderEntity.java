@@ -42,9 +42,10 @@ public class OrderEntity {
     /**
      * The event id emitted for this order's OrderCreated event.
      *
-     * <p>Stored so the duplicate-delivery demo can replay a byte-identical event through the real
-     * outbox and Kafka path rather than fabricating one on a side channel — the duplicate then
-     * looks exactly like the one an at-least-once relay would produce.
+     * <p>Stored so the duplicate-delivery demo can replay the event under its original id through
+     * the real outbox and Kafka path, rather than fabricating one on a side channel. To the
+     * consumer's inbox, which compares only event ids, the replay is indistinguishable from the
+     * redelivery an at-least-once relay would produce.
      */
     @Column(name = "created_event_id", nullable = false, length = 64)
     private String createdEventId;

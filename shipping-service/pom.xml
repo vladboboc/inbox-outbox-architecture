@@ -85,6 +85,18 @@
             <artifactId>micrometer-registry-prometheus</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!-- Tracing bridge, as in order-service. With it the listener's observation continues the
+             trace carried in each record's traceparent header, so shipping-service logs show the
+             trace id of the order request that caused the event. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-tracing-brave</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-brave</artifactId>
+            <scope>runtime</scope>
+        </dependency>
 
         <!-- ===== test ===== -->
         <dependency>

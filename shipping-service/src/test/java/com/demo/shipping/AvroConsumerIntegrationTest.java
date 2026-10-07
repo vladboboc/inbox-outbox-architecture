@@ -73,7 +73,7 @@ class AvroConsumerIntegrationTest {
         inboxMessageRepository.deleteAll();
         // Sending before the group has partitions would still work (auto-offset-reset=earliest),
         // but waiting keeps the timing deterministic.
-        for (String id : List.of("orders-created", "orders-dlt")) {
+        for (String id : List.of("orders", "orders-dlt")) {
             MessageListenerContainer container = listenerRegistry.getListenerContainer(id);
             assertThat(container).as("listener container %s", id).isNotNull();
             ContainerTestUtils.waitForAssignment(container, 1);

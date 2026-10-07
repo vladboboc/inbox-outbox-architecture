@@ -44,7 +44,8 @@ spring:
       acks: all
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       # Confluent wire format: 0x00 magic byte + 4-byte schema id + Avro binary. The schema is
-      # registered under <topic>-value on first use (auto.register.schemas defaults to true; in
+      # registered on first use under its record name (see value.subject.name.strategy below;
+      # auto.register.schemas defaults to true; in
       # production register schemas in CI and set it to false). The payload reaching this
       # serializer is already the generated SpecificRecord -- see KafkaOutboxRoutingConfig.
       value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
@@ -56,6 +57,17 @@ spring:
         # Fail fast when brokers are down so the record is retried by the outbox poller
         # instead of blocking a relay thread for two minutes.
         max.block.ms: 8000
+        # orders.v1 carries two record types (OrderCreated, OrderCancelled). The default
+        # TopicNameStrategy would register both under orders.v1-value and the second would fail the
+        # compatibility check; RecordNameStrategy registers each under its own full name
+        # (com.demo.events.avro.OrderCreated, ...). The consumer needs no setting: it reads the
+        # schema id from the payload.
+        value.subject.name.strategy: io.confluent.kafka.serializers.subject.RecordNameStrategy
+    template:
+      # The KafkaTemplate's observation writes a W3C traceparent header onto each record. The relay
+      # sends from inside the trace namastack restored from the outbox row, so that header carries
+      # the trace of the HTTP request that scheduled the event.
+      observation-enabled: true
 
 namastack:
   outbox:
@@ -94,7 +106,8 @@ namastack:
       # Kafka: the outbox table still stores the payload as Jackson JSON via namastack's own
       # OutboxPayloadSerializer, which is unrelated to this flag.
       enable-json: false
-      default-topic: domain-events
+      # No default-topic here: it only feeds namastack's built-in routing, which
+      # KafkaOutboxRoutingConfig replaces. Topics, including the fallback, are set there.
 
 server:
   port: 8090
@@ -121,9 +134,11 @@ management:
         outbox.record.schedule: true
       slo:
         outbox.record.process: 50ms,200ms,1s,5s
-  observations:
-    annotations:
-      enabled: true
+  tracing:
+    sampling:
+      # Trace every request. No exporter is configured, so spans stay in-process: the ids exist to
+      # correlate logs and Kafka records, not to feed a tracing backend.
+      probability: 1.0
 
 logging:
   level:

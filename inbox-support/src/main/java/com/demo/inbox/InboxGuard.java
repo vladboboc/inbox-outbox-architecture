@@ -7,6 +7,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 
@@ -51,10 +53,11 @@ public class InboxGuard {
     /**
      * Attempts to claim {@code eventId} for {@code consumer}.
      *
-     * <p>{@link Propagation#MANDATORY} is not cosmetic: it makes it a startup-visible error to
-     * call this outside a transaction. Without an enclosing transaction the claim would commit on
-     * its own, and a subsequent business failure would leave the event permanently marked as
-     * processed — silently dropping it. Failing loudly is much better than losing an event.
+     * <p>{@link Propagation#MANDATORY} is not cosmetic: calling this outside a transaction throws
+     * {@code IllegalTransactionStateException} on the very first call. Without an enclosing
+     * transaction the claim would commit on its own, and a subsequent business failure would leave
+     * the event permanently marked as processed — silently dropping it. Failing loudly is much
+     * better than losing an event.
      *
      * @return {@code true} if this is the first delivery and processing should continue,
      *     {@code false} if the event was already handled.
@@ -85,17 +88,30 @@ public class InboxGuard {
                     topic,
                     partitionNo,
                     recordOffset);
-            counter("inbox.messages.duplicate", "Deliveries suppressed as already processed", tags)
-                    .increment();
+            countOnCommit(
+                    "inbox.messages.duplicate", "Deliveries suppressed as already processed", tags);
             return false;
         }
 
         log.debug("inbox: claimed eventId={} consumer={}", eventId, consumer);
-        counter("inbox.messages.processed", "Deliveries accepted for processing", tags).increment();
+        countOnCommit("inbox.messages.processed", "Deliveries processed and committed", tags);
         return true;
     }
 
-    private Counter counter(String name, String description, Tags tags) {
-        return Counter.builder(name).description(description).tags(tags).register(meterRegistry);
+    /**
+     * Increments the counter when the surrounding transaction commits, and not at all if it rolls
+     * back. Counters are not transactional: incremented directly, a handler that throws would count
+     * as processed on every retry, even though its claim and its work were rolled back each time.
+     */
+    private void countOnCommit(String name, String description, Tags tags) {
+        Counter counter =
+                Counter.builder(name).description(description).tags(tags).register(meterRegistry);
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        counter.increment();
+                    }
+                });
     }
 }

@@ -1,5 +1,11 @@
 package com.demo.order;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,8 +19,13 @@ import org.testcontainers.kafka.ConfluentKafkaContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
@@ -22,9 +33,11 @@ import static org.awaitility.Awaitility.await;
 /**
  * Producer-side guarantees against a real Postgres and a real broker.
  *
- * <p>Two distinct claims are checked: that the event cannot outlive a rolled-back business
- * transaction, and that a committed event does actually reach Kafka. Neither can be established with
- * mocks — the first is a property of the database transaction and the second of the relay.
+ * <p>The claims checked: that the event cannot outlive a rolled-back business transaction, that a
+ * committed event does actually reach Kafka, that one order's events reach Kafka on one partition
+ * in the order they happened, and that a record carries the trace of the request that scheduled
+ * it. None can be established with mocks — the first is a property of the database transaction,
+ * the others of the relay and the broker.
  */
 @SpringBootTest
 @Testcontainers
@@ -36,15 +49,19 @@ class OutboxAtomicityTest {
     @ServiceConnection
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17.10");
 
+    // Three partitions per auto-created topic, as docker/kafka/create-topics.sh provisions them, so
+    // "one partition" in the ordering test is a real assertion rather than the only possibility.
     @Container
     @ServiceConnection
     static final ConfluentKafkaContainer KAFKA =
-            new ConfluentKafkaContainer("confluentinc/cp-kafka:8.2.2");
+            new ConfluentKafkaContainer("confluentinc/cp-kafka:8.2.2")
+                    .withEnv("KAFKA_NUM_PARTITIONS", "3");
 
     @Autowired OrderService orderService;
     @Autowired OrderRepository orderRepository;
     @Autowired JdbcTemplate jdbcTemplate;
     @Autowired TransactionTemplate transactionTemplate;
+    @Autowired Tracer tracer;
 
     @Test
     void committedOrderWritesAnOutboxRecordAndIsEventuallyPublished() {
@@ -105,6 +122,90 @@ class OutboxAtomicityTest {
                                         .contains(
                                                 "com.demo.events.OrderCreated",
                                                 "com.demo.events.OrderCancelled"));
+    }
+
+    @Test
+    void creationAndCancellationShareAPartitionAndArriveInOrder() {
+        // The relay sequences one order's events, but Kafka preserves a sequence only within one
+        // topic-partition. This pins the routing that keeps both events there — one topic, one key.
+        // With cancellations on a topic of their own, a cancellation could be consumed before its
+        // creation and find no shipment to cancel.
+        OrderEntity order = orderService.createOrder("CUST-SEQ", new BigDecimal("12.00"));
+        orderService.cancelOrder(order.getId(), "changed mind");
+
+        List<ConsumerRecord<String, String>> published = publishedFor(order.getId(), 2);
+
+        assertThat(published)
+                .extracting(record -> header(record, "eventType"))
+                .as("both events on orders.v1, creation first")
+                .containsExactly("OrderCreated", "OrderCancelled");
+        assertThat(published)
+                .extracting(ConsumerRecord::partition)
+                .containsOnly(published.getFirst().partition());
+        assertThat(partitionCount("orders.v1")).as("with one partition this proves nothing").isEqualTo(3);
+    }
+
+    @Test
+    void thePublishedRecordCarriesTheTraceOfTheRequestThatScheduledIt() {
+        // The relay publishes from a poller thread with no request context, yet the trace must
+        // arrive: namastack stores it on the outbox row at schedule time and restores it around
+        // the send, and the KafkaTemplate's observation writes it out as a traceparent header.
+        Span request = tracer.nextSpan().name("test-request").start();
+        OrderEntity order;
+        try (Tracer.SpanInScope _ = tracer.withSpan(request)) {
+            order = orderService.createOrder("CUST-TRACE", new BigDecimal("5.00"));
+        } finally {
+            request.end();
+        }
+
+        List<ConsumerRecord<String, String>> published = publishedFor(order.getId(), 1);
+
+        assertThat(published).hasSize(1);
+        assertThat(published.getFirst().headers().lastHeader("traceparent"))
+                .as("W3C trace context on the Kafka record")
+                .isNotNull();
+        // traceparent is version-traceId-parentId-flags.
+        String traceparent = header(published.getFirst(), "traceparent");
+        assertThat(traceparent.split("-")[1]).isEqualTo(request.context().traceId());
+    }
+
+    /**
+     * Reads {@code orders.v1} from the start until {@code expected} records keyed by
+     * {@code orderId} have arrived, or a minute has passed.
+     */
+    private static List<ConsumerRecord<String, String>> publishedFor(String orderId, int expected) {
+        List<ConsumerRecord<String, String>> published = new ArrayList<>();
+        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(consumerConfig())) {
+            consumer.subscribe(List.of("orders.v1"));
+            Instant deadline = Instant.now().plusSeconds(60);
+            while (published.size() < expected && Instant.now().isBefore(deadline)) {
+                for (ConsumerRecord<String, String> record : consumer.poll(Duration.ofMillis(500))) {
+                    if (orderId.equals(record.key())) {
+                        published.add(record);
+                    }
+                }
+            }
+        }
+        return published;
+    }
+
+    private static int partitionCount(String topic) {
+        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(consumerConfig())) {
+            return consumer.partitionsFor(topic).size();
+        }
+    }
+
+    private static Map<String, Object> consumerConfig() {
+        return Map.of(
+                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA.getBootstrapServers(),
+                ConsumerConfig.GROUP_ID_CONFIG, "test-reader-" + UUID.randomUUID(),
+                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
+                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
+                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+    }
+
+    private static String header(ConsumerRecord<?, ?> record, String name) {
+        return new String(record.headers().lastHeader(name).value(), StandardCharsets.UTF_8);
     }
 
     private List<String> recordTypesFor(String recordKey) {

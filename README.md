@@ -20,7 +20,7 @@ Spring Boot 4** — namastack ships outbox only, and the sole first-party altern
 Integration's `IdempotentReceiverInterceptor` + `JdbcMetadataStore`, which pushes you into channel
 adapters rather than plain `@KafkaListener`.
 
-So [`inbox-support`](inbox-support) is a small, auditable module (~5 classes) built on one idea:
+So [`inbox-support`](inbox-support) is a small, auditable module (six classes) built on one idea:
 
 ```sql
 INSERT INTO inbox_message (event_id, consumer, ...) VALUES (...)
@@ -59,7 +59,7 @@ sequenceDiagram
     OS-->>C: 201 Created
 
     Note over OS: relay polls, adaptive 0.5s to 5s
-    OS->>K: send to orders.v1, key = order-{id}
+    OS->>K: send to orders.v1, key = orderId
     K-->>OS: ack — acks=all, min.insync.replicas=2
     OS->>ODB: UPDATE outbox_record to COMPLETED
 
@@ -132,9 +132,11 @@ all three observability modules must be declared explicitly — see [order-servi
 
 ## Prerequisites
 
-Only **Docker** is required. There is no need for a local JDK or Maven: the service images build
-themselves, and `./mvnw` uses the `only-script` wrapper distribution, which downloads Maven on first
-use.
+Only **Docker** is required to run the stack: the service images compile themselves inside a Maven
+container. Running the tests on the host with `./mvnw` additionally needs a JDK 25. The
+`only-script` wrapper downloads Maven on first use, but not a JDK. Without one, run the build in
+the Maven image instead (see
+[Building and testing](#building-and-testing-without-docker-compose)).
 
 ---
 
@@ -195,7 +197,9 @@ curl -s -X POST localhost:8090/orders -H 'Content-Type: application/json' -d '{"
 curl -s localhost:8091/inbox
 ```
 
-One shipment, one inbox claim. The message is visible on `orders.v1` in Conduktor.
+One shipment, one inbox claim. The message is visible on `orders.v1` in Conduktor, with `eventType`,
+`eventId` and a W3C `traceparent` header: the trace of the `POST`, carried across the outbox by
+namastack and written onto the record by the producer's observation.
 
 ### 2. Outbox durability — the core proof
 
@@ -256,19 +260,42 @@ the event was never falsely marked as handled.
 
 ### 5. Ordering
 
-Cancelling reuses the `order-<id>` outbox key, so create-then-cancel for one order is relayed
-sequentially and lands on the same Kafka partition:
+Cancelling reuses the `order-<id>` outbox key, so the relay publishes an order's cancellation only
+after its creation has been acknowledged. Both events go to `orders.v1` under the same Kafka key,
+so they share a partition and shipping-service consumes them in that order too:
 
 ```bash
 curl -s -X POST "localhost:8090/orders/ORD-XXXXXXXX/cancel?reason=changed-mind"
 ```
 
+The shipment moves to `CANCELLED` (`GET :8091/shipments`).
+
+The shared topic is load-bearing. Kafka orders records only within one topic-partition: with
+cancellations on a topic of their own, a cancellation could be consumed before its creation, find
+no shipment and be marked handled, leaving the shipment created afterwards pending for good.
+
+The Kafka message key is the bare order id (`ORD-XXXXXXXX`), not the outbox key. Both are derived
+from the order id, so each order maps to one ordering group and one partition.
+
 ---
 
 ## Building and testing without Docker Compose
 
+With a local JDK 25:
+
 ```bash
-./mvnw verify
+./mvnw clean verify
+```
+
+`clean` matters after switching branches: without it, Surefire also runs stale test classes left in
+`target/` by the other branch.
+
+Without one, run the same build in the Maven image the Dockerfiles use. The tests start Postgres and
+Kafka through Testcontainers, so the container gets the Docker socket; this form is for Docker
+Desktop, and `iox-m2` is a named volume that caches the Maven repository between runs:
+
+```bash
+docker run --rm -v "${PWD}:/work" -w /work -v iox-m2:/root/.m2 -v /var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal maven:3.9-eclipse-temurin-25 mvn -B -ntp clean verify
 ```
 
 The wrapper still needs a JDK on the host. Without one, run Maven in a container and hand it the
@@ -294,9 +321,9 @@ ones that do not need it say so.
 on the producer, `KafkaAvroDeserializer` (behind `ErrorHandlingDeserializer`, `specific.avro.reader`)
 on the consumer, schemas in the Schema Registry at `:8081`. The contracts are the `.avsc` files in
 [`common-events/src/main/avro`](common-events/src/main/avro); `avro-maven-plugin` generates the
-`com.demo.events.avro.*` classes from them at build time. Subjects follow the topic-name strategy and
-are auto-registered on first use — `orders.v1-value` after the first order, `orders.v1.cancelled-value`
-after the first cancellation, `orders.v1.DLT-value` after the poison demo (the dead-letter producer
+`com.demo.events.avro.*` classes from them at build time. Subjects follow the record-name strategy (`orders.v1` carries both event types) and
+are auto-registered on first use — `com.demo.events.avro.OrderCreated` after the first order, `OrderCancelled`
+after the first cancellation. The dead-letter producer shares both subjects: it
 re-publishes a failed event as Avro, and the original bytes untouched when deserialization itself
 failed). `curl -s localhost:8081/subjects` shows them; Conduktor shows the schema next to each topic.
 In production, register schemas from CI and set `auto.register.schemas=false`.

@@ -37,7 +37,10 @@ public class InboxProperties {
          */
         private Duration retention = Duration.ofDays(7);
 
-        /** How often the purge runs. */
+        /**
+         * How often the purge runs. {@link InboxCleanupJob} reads this key through its
+         * {@code @Scheduled} placeholder, whose fallback value must match this default.
+         */
         private Duration interval = Duration.ofHours(1);
 
         public boolean isEnabled() {

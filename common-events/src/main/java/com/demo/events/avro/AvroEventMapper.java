@@ -63,6 +63,17 @@ public final class AvroEventMapper {
                 .build();
     }
 
+    /** Maps whichever generated record arrived on {@code orders.v1} back to its domain event. */
+    public static OrderEvent fromAvro(SpecificRecord record) {
+        return switch (record) {
+            case OrderCreated e -> fromAvro(e);
+            case OrderCancelled e -> fromAvro(e);
+            default ->
+                    throw new IllegalArgumentException(
+                            "no domain event for Avro record type " + record.getClass().getName());
+        };
+    }
+
     public static com.demo.events.OrderCreated fromAvro(OrderCreated record) {
         return new com.demo.events.OrderCreated(
                 record.getEventId(),

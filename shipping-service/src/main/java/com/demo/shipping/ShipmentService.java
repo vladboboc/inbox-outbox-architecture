@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Business reaction to order events.
@@ -57,28 +58,34 @@ public class ShipmentService {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void cancelShipment(OrderCancelled event) {
-        shipmentRepository
-                .findFirstByOrderId(event.orderId())
-                .ifPresentOrElse(
-                        shipment -> {
-                            shipment.cancel();
-                            shipmentRepository.save(shipment);
-                            log.info(
-                                    "shipment cancelled id={} order={} reason={}",
-                                    shipment.getId(),
-                                    event.orderId(),
-                                    event.reason());
-                        },
-                        () ->
-                                // Not an error: cancellation can legitimately arrive before the
-                                // creation event has been consumed.
-                                log.warn(
-                                        "cancellation for order={} has no shipment yet; nothing to do",
-                                        event.orderId()));
+        Optional<Shipment> found = shipmentRepository.findFirstByOrderId(event.orderId());
+        if (found.isEmpty()) {
+            // A cancellation shares its creation's partition, so the creation is always consumed
+            // first. In practice the only way to get here is a creation that exhausted its retries
+            // and went to orders.v1.DLT: there is nothing to cancel, but an operator should look.
+            log.warn(
+                    "cancellation for order={} found no shipment; was its OrderCreated dead-lettered?",
+                    event.orderId());
+            return;
+        }
+
+        Shipment shipment = found.get();
+        shipment.cancel();
+        shipmentRepository.save(shipment);
+        log.info(
+                "shipment cancelled id={} order={} reason={}",
+                shipment.getId(),
+                event.orderId(),
+                event.reason());
     }
 
     @Transactional(readOnly = true)
     public List<Shipment> findAll() {
         return shipmentRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public long count() {
+        return shipmentRepository.count();
     }
 }

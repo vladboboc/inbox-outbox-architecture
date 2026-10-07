@@ -42,10 +42,13 @@ public class OrderService {
     /**
      * Explicit producer path: {@code outbox.schedule(payload, key)}.
      *
-     * <p>The key is {@code order-<id>}. namastack processes records sharing a key strictly
-     * sequentially, so every event for one order is relayed in the order it was scheduled. The same
-     * value is used as the Kafka message key by the routing configuration, which pins all of an
-     * order's events to one partition and preserves that ordering downstream too.
+     * <p>The key is {@code order-<id>}: the outbox key, i.e. the aggregate id as namastack sees it
+     * (see {@code OrderEvent#orderId}). namastack processes records sharing a key strictly
+     * sequentially, so every event for one order is relayed in the order it was scheduled. The
+     * routing then publishes them all to one topic under one Kafka key, the bare order id, which
+     * Kafka uses as the partition key (see
+     * {@code KafkaOutboxRoutingConfig}), so they share a partition and the consumer sees them in
+     * that same order.
      */
     @Transactional
     public OrderEntity createOrder(String customerId, BigDecimal totalAmount) {
@@ -66,12 +69,13 @@ public class OrderService {
     }
 
     /**
-     * Re-schedules a byte-identical {@link OrderCreated} for an existing order.
+     * Re-schedules an existing order's {@link OrderCreated} under its original event id.
      *
      * <p>This is the demo stand-in for the one case the outbox cannot rule out: the relay sends to
      * Kafka successfully but crashes before marking the record complete, so on recovery it sends the
-     * same event again. Because the event id is replayed unchanged, the consumer's inbox recognises
-     * the second delivery and drops it.
+     * same event again. The payload is rebuilt from the order row, so it is not byte-identical to
+     * the original ({@code occurredAt} comes from {@code created_at}). Only the event id is
+     * guaranteed to match, and that is the one field the consumer's inbox compares.
      */
     @Transactional
     public OrderCreated replayCreatedEvent(String orderId) {
@@ -132,7 +136,7 @@ public class OrderService {
         return orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
     }
 
-    static String orderKey(String orderId) {
+    private static String orderKey(String orderId) {
         return "order-" + orderId;
     }
 }

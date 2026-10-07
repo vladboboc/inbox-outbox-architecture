@@ -3,7 +3,9 @@
 FROM maven:3.9-eclipse-temurin-25 AS build
 WORKDIR /build
 
-# POMs first so dependency resolution is cached independently of source changes.
+# POMs first so dependency resolution is cached independently of source changes. `|| true` because
+# go-offline cannot resolve the sibling SNAPSHOT modules before they are built; whatever it does
+# fetch still warms the cache for the real build below.
 COPY pom.xml ./
 COPY common-events/pom.xml    common-events/
 COPY inbox-support/pom.xml    inbox-support/
@@ -33,6 +35,9 @@ USER appuser
 COPY --from=build /build/order-service/target/order-service-*.jar /app/app.jar
 
 EXPOSE 8090
-# Container-aware heap sizing; virtual threads are enabled via application.yml.
-ENV JAVA_OPTS="-XX:MaxRAMPercentage=70 -XX:+UseZGC"
+# Heap is 60% of the container's memory limit, which leaves room for metaspace, thread stacks and
+# direct buffers: at 70% the container sat at ~97% of a 1 GB limit, one traffic spike from an OOM
+# kill. Without a limit the percentage applies to the whole Docker VM, so docker-compose.yml sets
+# one. Virtual threads are enabled in application.yml.
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=60 -XX:+UseZGC"
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]

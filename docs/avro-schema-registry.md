@@ -18,7 +18,7 @@ flowchart LR
         SER["KafkaAvroSerializer"]
         REC --> OUT --> MAP --> SER
     end
-    SR["Schema Registry<br/>orders.v1-value"]
+    SR["Schema Registry<br/>one subject per record name"]
     K["orders.v1<br/>0x00 · schema id · Avro binary"]
     subgraph ss["shipping-service"]
         direction LR
@@ -78,8 +78,9 @@ was rejected: generated code cannot carry `@OutboxEvent`, Jackson would need mix
     configs, so one key serves every client and one `SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL` env
     var overrides it in compose. A producer-scoped copy would silently win over the compose value.
   - `spring.json.type.mapping` is gone: the schema's full name is the type contract now.
+  - `value.subject.name.strategy: RecordNameStrategy` on the producer (and on the dead-letter producer in `shipping-service`), because `orders.v1` and `orders.v1.DLT` each carry two record types. The consumer needs no setting: it reads the schema id from the payload.
 - **`KafkaOutboxRoutingConfig`** — `route.mapping((payload, metadata) -> AvroEventMapper.toAvro(payload))`
-  on both routes and on `defaults`. namastack resolves topic, key and headers from the *original*
+  on the single order route and on `defaults`. namastack resolves topic, key and headers from the *original*
   payload and only then applies the mapping, so those lambdas still see the domain record. Because
   the mapping is deterministic, a retried or replayed outbox row produces byte-identical Avro, which
   is the property the consumer's inbox depends on.
@@ -103,8 +104,8 @@ was rejected: generated code cannot carry `@OutboxEvent`, Jackson would need mix
   `DelegatingByTypeSerializer` has no property-based configuration. Declaring the factory makes
   Boot's own back off, which also drops its `@ServiceConnection` handling — hence the bean reads
   `KafkaConnectionDetails` itself so Testcontainers still works.
-- **`OrderEventListener`** — `@Payload com.demo.events.avro.OrderCreated payload`, then
-  `OrderCreated event = AvroEventMapper.fromAvro(payload)` on the first line. Everything after is the
+- **`OrderEventListener`** — one `onOrderEvent(@Payload SpecificRecord payload, ...)` for both types, then
+  `OrderEvent event = AvroEventMapper.fromAvro(payload)` on the first line. Everything after is the
   unchanged claim-then-act sequence.
 
 ### Build, infrastructure, tests
@@ -133,16 +134,15 @@ was rejected: generated code cannot carry `@OutboxEvent`, Jackson would need mix
 curl -s localhost:8081/subjects
 ```
 
-Subjects follow the topic-name strategy and are auto-registered on first use:
+`orders.v1` carries both event types, so the producer uses `RecordNameStrategy` (subject = the record's full name) rather than the default topic-name strategy, which would register both schemas under one subject and fail the second. Subjects are auto-registered on first use:
 
 | Subject | Appears after |
 |---|---|
-| `orders.v1-value` | first order |
-| `orders.v1.cancelled-value` | first cancellation |
-| `orders.v1.DLT-value` | first poison order (the recoverer republishes the event as Avro) |
+| `com.demo.events.avro.OrderCreated` | first order |
+| `com.demo.events.avro.OrderCancelled` | first cancellation |
 
 ```bash
-curl -s localhost:8081/subjects/orders.v1-value/versions/latest | jq -r .schema | jq .
+curl -s localhost:8081/subjects/com.demo.events.avro.OrderCreated/versions/latest | jq -r .schema | jq .
 ```
 
 ```bash
@@ -170,8 +170,8 @@ in `KafkaConsumerConfig` and from the mapper test. The alternative is
 `-Dorg.apache.avro.SERIALIZABLE_PACKAGES=com.demo.events.avro` on every affected JVM.
 
 *Who is affected.* The check fires on the schema-to-class lookup, and only there. A producer is
-unaffected: `KafkaAvroSerializer` works from the record instance it is handed and never resolves a
-class by name, which is why order-service does not call `AvroTrust` at all. A consumer using
+unaffected against a real registry: `KafkaAvroSerializer` works from the record instance it is handed and does not resolve a
+class by name. The `mock://` registry the tests use does (it looks the class up on every send), which is why order-service calls `AvroTrust` too. A consumer using
 `GenericRecord` instead of the specific reader is also unaffected — `GenericRecord` does not
 instantiate your generated class at all, so there is no class-name lookup to trust or block.
 
@@ -210,7 +210,6 @@ consumer clients because the key sits under the common `spring.kafka.properties`
 - Register schemas from CI (`schema-registry-maven-plugin` or the REST API) and set
   `auto.register.schemas=false` plus `use.latest.version=true` on the producer, so a developer's
   branch cannot publish an unreviewed contract.
-- Consider `TopicRecordNameStrategy` if a topic ever needs to carry more than one event type.
 - Evolve schemas by adding fields with defaults (backward compatible). Renaming or retyping a field
   means a new topic version (`orders.v2`), which the routing already makes cheap.
 - Keep the mapper the only place that knows both shapes; if it grows, generate it.

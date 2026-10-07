@@ -171,9 +171,9 @@ services:
       timeout: 5s
       retries: 20
       start_period: 40s
-    # Required, not merely tidy. The image sets -XX:MaxRAMPercentage=70, which without a limit is
-    # 70% of the whole Docker VM -- this service was observed holding 2.4 GB. The limit is what
-    # gives MaxRAMPercentage a sane basis to compute against.
+    # Required, not merely tidy. The image sizes its heap with -XX:MaxRAMPercentage (see its
+    # Dockerfile), which without a limit is a percentage of the whole Docker VM -- this service was
+    # observed holding 2.4 GB. The limit is what gives MaxRAMPercentage a sane basis.
     deploy:
       resources:
         limits:

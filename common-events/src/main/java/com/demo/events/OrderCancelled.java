@@ -15,10 +15,10 @@ import java.util.UUID;
  * inside the caller's transaction before any listener runs.
  *
  * <p>{@code key} is a SpEL expression evaluated against the event instance, so cancellations
- * share the {@code orderId} ordering key with {@link OrderCreated}. The {@code context} entries
- * are event-specific metadata stored on the outbox row; cross-cutting values such as
- * {@code traceId} come from an {@code OutboxContextProvider} bean instead, so they don't have to
- * be repeated on every annotation.
+ * share their order's ordering key with {@link OrderCreated}. The {@code context} entries are
+ * event-specific metadata stored on the outbox row; cross-cutting values such as the trace context
+ * ({@code traceparent}) come from an {@code OutboxContextProvider} bean instead — namastack's
+ * tracing provider here — so they don't have to be repeated on every annotation.
  */
 @OutboxEvent(
         // Must produce exactly the same key as OrderService's explicit path ("order-" + id).
